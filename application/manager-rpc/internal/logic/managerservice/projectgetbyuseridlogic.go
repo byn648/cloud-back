@@ -2,6 +2,7 @@ package managerservicelogic
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/yanshicheng/kube-nova/application/manager-rpc/internal/model"
@@ -27,54 +28,110 @@ func NewProjectGetByUserIdLogic(ctx context.Context, svcCtx *svc.ServiceContext)
 }
 
 func (l *ProjectGetByUserIdLogic) ProjectGetByUserId(in *pb.GetOnecProjectsByUserIdReq) (*pb.GetOnecProjectsByUserIdResp, error) {
-	// 验证必需参数
-	if in.UserId == 0 {
-		l.Error("用户ID为空或无效")
-		return nil, errorx.Msg("用户ID无效")
-	}
+	username, roles := l.resolveCurrentUserContext(in)
 
 	// 标准化搜索名称
 	searchName := ""
 	if in.Name != "" {
 		searchName = strings.ToLower(strings.TrimSpace(in.Name))
-		l.Infof("开始查询用户 [ID:%d] 名称包含 [%s] 的项目列表", in.UserId, searchName)
+		l.Infof("开始查询用户 [username:%s] 名称包含 [%s] 的项目列表", username, searchName)
 	} else {
-		l.Infof("开始查询用户 [ID:%d] 的所有项目列表", in.UserId)
+		l.Infof("开始查询用户 [username:%s] 的所有项目列表", username)
 	}
 
 	// 检查是否为超级管理员
-	if l.isSuperAdmin(in.Roles) {
-		l.Infof("用户 [ID:%d] 拥有 SUPER_ADMIN 角色，返回所有项目", in.UserId)
+	if l.isSuperAdmin(roles) {
+		l.Infof("用户 [username:%s] 拥有 SUPER_ADMIN 角色，返回所有项目", username)
 		return l.getAllProjects(searchName)
 	}
 
-	l.Info("用户角色", in.Roles)
-	// 查询用户作为管理员的项目关联记录
-	projectAdmins, err := l.queryUserProjectAdmins(in.UserId)
-	if err != nil {
-		return nil, err
+	if strings.TrimSpace(username) == "" {
+		l.Error("用户名为空或无效")
+		return nil, errorx.Msg("用户名无效")
 	}
 
-	if len(projectAdmins) == 0 {
-		l.Infof("用户 [ID:%d] 未关联任何项目", in.UserId)
+	// 查询当前用户创建的项目
+	queryStr := `(
+		created_by = ?
+		OR EXISTS (
+			SELECT 1
+			FROM onec_project_admin opa
+			JOIN sys_user su ON su.id = opa.user_id
+			WHERE opa.project_id = onec_project.id
+				AND opa.is_deleted = 0
+				AND su.is_deleted = 0
+				AND su.username = ?
+		)
+		OR EXISTS (
+			SELECT 1
+			FROM onec_project_member opm
+			JOIN sys_user su ON su.id = opm.user_id
+			WHERE opm.project_id = onec_project.id
+				AND opm.is_deleted = 0
+				AND su.is_deleted = 0
+				AND su.username = ?
+		)
+	)`
+	args := []any{username, username, username}
+	if searchName != "" {
+		queryStr += " AND LOWER(name) LIKE ?"
+		args = append(args, "%"+searchName+"%")
+	}
+
+	userProjects, err := l.svcCtx.OnecProjectModel.SearchNoPage(
+		l.ctx,
+		"created_at",
+		false,
+		queryStr,
+		args...,
+	)
+	if err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			l.Infof("用户 [username:%s] 未创建任何项目", username)
+			return &pb.GetOnecProjectsByUserIdResp{Data: []*pb.ProjectInfo{}}, nil
+		}
+		l.Errorf("查询用户 [username:%s] 创建的项目失败: %v", username, err)
+		return nil, errorx.Msg("查询用户项目权限失败")
+	}
+
+	if len(userProjects) == 0 {
+		l.Infof("用户 [username:%s] 未创建任何项目", username)
 		return &pb.GetOnecProjectsByUserIdResp{Data: []*pb.ProjectInfo{}}, nil
 	}
 
-	// 查询并过滤项目信息
-	projects, err := l.buildProjectList(projectAdmins, searchName)
-	if err != nil {
-		return nil, err
+	projects := make([]*pb.ProjectInfo, 0, len(userProjects))
+	for _, project := range userProjects {
+		pbProject, buildErr := l.buildProjectInfo(project)
+		if buildErr != nil {
+			l.Errorf("构建项目 [ID:%d] 信息失败: %v", project.Id, buildErr)
+			continue
+		}
+		projects = append(projects, pbProject)
 	}
 
-	l.Infof("成功查询到用户 [ID:%d] 的 %d 个匹配项目", in.UserId, len(projects))
+	l.Infof("成功查询到用户 [username:%s] 的 %d 个匹配项目", username, len(projects))
 
 	return &pb.GetOnecProjectsByUserIdResp{Data: projects}, nil
+}
+
+func (l *ProjectGetByUserIdLogic) resolveCurrentUserContext(in *pb.GetOnecProjectsByUserIdReq) (string, []string) {
+	username := ""
+	if ctxUsername, ok := l.ctx.Value("username").(string); ok {
+		username = ctxUsername
+	}
+
+	roles := in.Roles
+	if ctxRoles, ok := l.ctx.Value("roles").([]string); ok && len(ctxRoles) > 0 {
+		roles = ctxRoles
+	}
+
+	return username, roles
 }
 
 // isSuperAdmin 检查角色列表中是否包含 SUPER_ADMIN
 func (l *ProjectGetByUserIdLogic) isSuperAdmin(roles []string) bool {
 	for _, role := range roles {
-		if strings.ToUpper(role) == "SUPER_ADMIN" {
+		if strings.EqualFold(role, "SUPER_ADMIN") {
 			return true
 		}
 	}
@@ -118,60 +175,6 @@ func (l *ProjectGetByUserIdLogic) getAllProjects(searchName string) (*pb.GetOnec
 
 	l.Infof("超级管理员查询成功，共 %d 个匹配项目", len(projects))
 	return &pb.GetOnecProjectsByUserIdResp{Data: projects}, nil
-}
-
-// queryUserProjectAdmins 查询用户的项目管理员关联记录
-func (l *ProjectGetByUserIdLogic) queryUserProjectAdmins(userId uint64) ([]*model.OnecProjectAdmin, error) {
-	projectAdmins, err := l.svcCtx.OnecProjectAdminModel.SearchNoPage(
-		l.ctx,
-		"created_at",
-		false,
-		"user_id = ?",
-		userId,
-	)
-	if err != nil {
-		l.Errorf("查询用户 [ID:%d] 的项目管理员关联失败: %v", userId, err)
-		return nil, errorx.Msg("查询用户项目权限失败")
-	}
-
-	l.Infof("用户 [ID:%d] 关联了 %d 个项目", userId, len(projectAdmins))
-	return projectAdmins, nil
-}
-
-// buildProjectList 构建项目信息列表
-func (l *ProjectGetByUserIdLogic) buildProjectList(projectAdmins []*model.OnecProjectAdmin, searchName string) ([]*pb.ProjectInfo, error) {
-	var projects []*pb.ProjectInfo
-
-	for _, admin := range projectAdmins {
-		project, err := l.svcCtx.OnecProjectModel.FindOne(l.ctx, admin.ProjectId)
-		if err != nil {
-			l.Errorf("查询项目 [ID:%d] 详情失败: %v", admin.ProjectId, err)
-			continue // 跳过查询失败的项目，不影响其他项目的返回
-		}
-
-		// 如果指定了搜索名称，进行模糊匹配过滤
-		if searchName != "" && !l.matchProjectName(project.Name, searchName) {
-			l.Debugf("项目 [%s] 不匹配搜索条件 [%s]，跳过", project.Name, searchName)
-			continue
-		}
-
-		// 构建项目信息
-		pbProject, err := l.buildProjectInfo(project)
-		if err != nil {
-			l.Errorf("构建项目 [ID:%d] 信息失败: %v", project.Id, err)
-			continue
-		}
-
-		projects = append(projects, pbProject)
-		l.Debugf("成功获取项目 [%s:%s] 信息", project.Name, project.Uuid)
-	}
-
-	return projects, nil
-}
-
-// matchProjectName 检查项目名称是否匹配搜索条件
-func (l *ProjectGetByUserIdLogic) matchProjectName(projectName, searchName string) bool {
-	return strings.Contains(strings.ToLower(projectName), searchName)
 }
 
 // buildProjectInfo 构建单个项目信息

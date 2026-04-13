@@ -1,0 +1,45 @@
+Name: workload-api
+Host: 0.0.0.0
+Port: 8812
+Timeout: 30000
+InjectImage: "harbor.ikubeops.local/public/network-multitool:latest"
+
+DevServer:
+  Enabled: false
+
+Log:
+  ServiceName: workload-api
+  Mode: "console"
+  Encoding: "plain"
+  TimeFormat: "2006-01-02 15:04:05"
+  Path: "logs"
+  Level: "info"
+  MaxContentLength: 1024
+  Compress: false
+  Stat: true
+  KeepDays: 7
+  StackCooldownMillis: 100
+  MaxBackups: 0
+  MaxSize: 0
+  Rotation: "daily"
+
+Cache:
+  Host: 127.0.0.1:6379
+  Type: node
+  Pass: ""
+  Tls: false
+  NonBlock: true
+  PingTimeout: 3s
+
+ManagerRpc:
+  Endpoints:
+    - 127.0.0.1:30011
+  NonBlock: true
+  Timeout: 30000
+
+PortalRpc:
+  Endpoints:
+    - 127.0.0.1:30010
+  Optional: true
+  NonBlock: true
+  Timeout: 30000

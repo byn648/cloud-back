@@ -38,6 +38,7 @@ func (l *BindUserPlatformLogic) BindUserPlatform(req *types.BindUserPlatformRequ
 	_, err = l.svcCtx.PortalRpc.UserPlatformBind(l.ctx, &pb.BindUserPlatformReq{
 		UserId:      req.UserId,
 		PlatformIds: req.PlatformIds,
+		CreateBy:    username,
 	})
 	if err != nil {
 		l.Errorf("绑定用户平台失败: operator=%s, userId=%d, platformId=%d, error=%v", username, req.UserId, req.PlatformIds, err)

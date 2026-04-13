@@ -67,7 +67,11 @@ func (l *UserPlatformBindLogic) UserPlatformBind(in *pb.BindUserPlatformReq) (*p
 			}
 		}
 
-		// 2. 插入新的平台绑定
+		// 2. 保存新的平台绑定
+		// 说明：
+		// sys_user_platform 存在唯一键 (user_id, platform_id)。
+		// 不能简单“软删除后再插入”，否则会触发重复键冲突。
+		// 正确做法是：存在记录则恢复/更新，不存在才插入。
 		for _, platformId := range in.PlatformIds {
 			// 验证平台是否存在
 			platform, err := l.svcCtx.SysPlatformModel.FindOne(ctx, platformId)
@@ -80,7 +84,33 @@ func (l *UserPlatformBindLogic) UserPlatformBind(in *pb.BindUserPlatformReq) (*p
 				return errorx.Msg("查询平台失败")
 			}
 
-			// 创建用户平台绑定
+			existingBinding, err := l.svcCtx.SysUserPlatformModel.FindOneByUserIdPlatformId(ctx, in.UserId, platformId)
+			if err != nil && !errors.Is(err, model.ErrNotFound) {
+				l.Errorf("查询用户平台绑定失败: userId=%d, platformId=%d, error=%v", in.UserId, platformId, err)
+				return errorx.Msg("查询用户平台绑定失败")
+			}
+
+			// 若存在历史记录（包括已软删除），直接恢复并更新，避免唯一键冲突
+			if err == nil && existingBinding != nil {
+				existingBinding.IsEnable = platform.IsEnable
+				existingBinding.Status = 1
+				existingBinding.IsDeleted = 0
+				existingBinding.UpdateTime = time.Now()
+				if in.CreateBy != "" {
+					existingBinding.UpdateBy = sql.NullString{String: in.CreateBy, Valid: true}
+					if !existingBinding.CreateBy.Valid {
+						existingBinding.CreateBy = sql.NullString{String: in.CreateBy, Valid: true}
+					}
+				}
+
+				if err := l.svcCtx.SysUserPlatformModel.Update(ctx, existingBinding); err != nil {
+					l.Errorf("更新用户平台绑定失败: userId=%d, platformId=%d, error=%v", in.UserId, platformId, err)
+					return errorx.Msg("更新用户平台绑定失败")
+				}
+				continue
+			}
+
+			// 不存在历史记录，执行插入
 			userPlatform := &model.SysUserPlatform{
 				UserId:     in.UserId,
 				PlatformId: platformId,
