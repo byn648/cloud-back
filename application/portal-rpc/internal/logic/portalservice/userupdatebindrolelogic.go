@@ -3,6 +3,7 @@ package portalservicelogic
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/yanshicheng/kube-nova/application/portal-rpc/internal/model"
 	"github.com/yanshicheng/kube-nova/application/portal-rpc/internal/svc"
@@ -47,13 +48,20 @@ func (l *UserUpdateBindRoleLogic) UserUpdateBindRole(in *pb.UpdateSysUserBindRol
 	}
 
 	// 预先验证所有角色是否存在，收集有效的角色ID
+	operator := currentUsername(l.ctx)
+	isSuperAdmin := hasSuperAdminRole(l.ctx)
+	if !isSuperAdmin && operator == "" {
+		l.Errorf("用户角色绑定失败：当前用户信息缺失")
+		return nil, errorx.Msg("当前用户信息缺失")
+	}
+
 	validRoleIds := make([]uint64, 0, len(in.RoleIds))
 	for _, roleId := range in.RoleIds {
 		if roleId <= 0 {
 			continue // 跳过无效的角色ID
 		}
 
-		_, err := l.svcCtx.SysRole.FindOne(l.ctx, roleId)
+		role, err := l.svcCtx.SysRole.FindOne(l.ctx, roleId)
 		if err != nil {
 			if errors.Is(err, model.ErrNotFound) {
 				l.Errorf("角色不存在，跳过，角色ID: %d", roleId)
@@ -61,6 +69,12 @@ func (l *UserUpdateBindRoleLogic) UserUpdateBindRole(in *pb.UpdateSysUserBindRol
 			}
 			l.Errorf("查询角色失败，角色ID: %d, 错误: %v", roleId, err)
 			return nil, errorx.Msg("查询角色失败")
+		}
+
+		if !isSuperAdmin && !strings.EqualFold(strings.TrimSpace(role.CreatedBy), operator) {
+			l.Errorf("用户角色绑定失败：无权分配该角色, roleId: %d, roleCreatedBy: %s, operator: %s",
+				roleId, role.CreatedBy, operator)
+			return nil, errorx.Msg("包含无权限角色，无法分配")
 		}
 		validRoleIds = append(validRoleIds, roleId)
 	}

@@ -36,7 +36,7 @@ func (l *RoleAddApiLogic) RoleAddApi(in *pb.AddSysRoleApiReq) (*pb.AddSysRoleApi
 	}
 
 	// 验证角色是否存在
-	_, err := l.svcCtx.SysRole.FindOne(l.ctx, in.RoleId)
+	role, err := l.svcCtx.SysRole.FindOne(l.ctx, in.RoleId)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			l.Errorf("设置角色 API 权限关联失败：角色不存在, roleId: %d", in.RoleId)
@@ -44,6 +44,12 @@ func (l *RoleAddApiLogic) RoleAddApi(in *pb.AddSysRoleApiReq) (*pb.AddSysRoleApi
 		}
 		l.Errorf("查询角色信息失败: %v", err)
 		return nil, errorx.Msg("查询角色信息失败")
+	}
+
+	// 普通用户只能给自己创建的角色配置权限
+	if !canOperateRole(l.ctx, role) {
+		l.Errorf("设置角色 API 权限关联失败：无权操作该角色, roleId: %d", in.RoleId)
+		return nil, errorx.Msg("无权操作该角色")
 	}
 
 	// 验证所有 API ID 是否存在且为权限类型

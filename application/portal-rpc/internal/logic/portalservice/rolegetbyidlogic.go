@@ -47,6 +47,12 @@ func (l *RoleGetByIdLogic) RoleGetById(in *pb.GetSysRoleByIdReq) (*pb.GetSysRole
 		return nil, errorx.Msg("查询角色信息失败")
 	}
 
+	// 普通用户只能查看自己创建的角色
+	if !canOperateRole(l.ctx, role) {
+		l.Errorf("查询角色失败：无权查看该角色, roleId: %d", in.Id)
+		return nil, errorx.Msg("无权查看该角色")
+	}
+
 	// 转换为响应格式
 	pbRole := l.convertToPbRole(role)
 

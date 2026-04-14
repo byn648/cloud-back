@@ -20,6 +20,19 @@ SERVICES=(
   "console-api|application/console-api/console.go|application/console-api/etc/console-api.yaml"
 )
 
+service_port() {
+  case "$1" in
+    portal-rpc) echo "30010" ;;
+    manager-rpc) echo "30011" ;;
+    console-rpc) echo "30012" ;;
+    portal-api) echo "8810" ;;
+    manager-api) echo "8811" ;;
+    workload-api) echo "8812" ;;
+    console-api) echo "8813" ;;
+    *) echo "" ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 用法:
@@ -49,6 +62,11 @@ is_running_by_pid() {
   [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null
 }
 
+listening_pid_by_port() {
+  local port="$1"
+  lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
+}
+
 start_service() {
   local name="$1"
   local main_rel="$2"
@@ -71,6 +89,16 @@ start_service() {
 
   if [[ -f "${local_cfg_file}" ]]; then
     cfg_file="${local_cfg_file}"
+  fi
+
+  local target_port occupied_pid
+  target_port="$(service_port "${name}")"
+  if [[ -n "${target_port}" ]]; then
+    occupied_pid="$(listening_pid_by_port "${target_port}")"
+    if [[ -n "${occupied_pid}" ]]; then
+      echo "[ERROR] ${name}: 端口 ${target_port} 已被占用 (pid=${occupied_pid})，请先执行 ./scripts/stop-backend.sh ${name}"
+      return 1
+    fi
   fi
 
   if [[ -f "${pid_file}" ]]; then

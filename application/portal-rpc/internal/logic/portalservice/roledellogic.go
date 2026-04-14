@@ -46,6 +46,12 @@ func (l *RoleDelLogic) RoleDel(in *pb.DelSysRoleReq) (*pb.DelSysRoleResp, error)
 		return nil, errorx.Msg("查询角色信息失败")
 	}
 
+	// 普通用户只能删除自己创建的角色
+	if !canOperateRole(l.ctx, existingRole) {
+		l.Errorf("删除角色失败：无权操作该角色, roleId: %d", in.Id)
+		return nil, errorx.Msg("无权操作该角色")
+	}
+
 	// 检查是否有用户关联到此角色
 	userRoles, err := l.svcCtx.SysUserRole.SearchNoPage(l.ctx, "", true, "`role_id` = ?", in.Id)
 	if err != nil && !errors.Is(err, model.ErrNotFound) {
@@ -90,7 +96,7 @@ func (l *RoleDelLogic) RoleDel(in *pb.DelSysRoleReq) (*pb.DelSysRoleResp, error)
 	}
 
 	// 检查是否为系统预设角色（如super、admin等）
-	systemRoles := []string{"super", "admin", "system"}
+	systemRoles := []string{"super", "admin", "system", "super_admin"}
 	for _, sysRole := range systemRoles {
 		if existingRole.Code == sysRole {
 			l.Errorf("删除角色失败：不能删除系统预设角色, roleCode: %s", existingRole.Code)

@@ -66,6 +66,11 @@ func (l *UserSearchRoleLogic) UserSearchRole(in *pb.SearchSysUserRoleReq) (*pb.S
 			continue // 跳过查询失败的角色，继续处理其他角色
 		}
 
+		// 普通用户只能看到自己创建的角色
+		if !canOperateRole(l.ctx, role) {
+			continue
+		}
+
 		// 添加角色名称和ID到结果集
 		roleNames = append(roleNames, role.Name)
 		roleIds = append(roleIds, role.Id)

@@ -35,7 +35,7 @@ func (l *RoleSearchMenuLogic) RoleSearchMenu(in *pb.SearchSysRoleMenuReq) (*pb.S
 	}
 
 	// 验证角色是否存在
-	_, err := l.svcCtx.SysRole.FindOne(l.ctx, in.RoleId)
+	role, err := l.svcCtx.SysRole.FindOne(l.ctx, in.RoleId)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			l.Errorf("查询角色关联菜单失败：角色不存在, roleId: %d", in.RoleId)
@@ -43,6 +43,12 @@ func (l *RoleSearchMenuLogic) RoleSearchMenu(in *pb.SearchSysRoleMenuReq) (*pb.S
 		}
 		l.Errorf("查询角色信息失败: %v", err)
 		return nil, errorx.Msg("查询角色信息失败")
+	}
+
+	// 普通用户只能查看自己创建角色的菜单配置
+	if !canOperateRole(l.ctx, role) {
+		l.Errorf("查询角色关联菜单失败：无权操作该角色, roleId: %d", in.RoleId)
+		return nil, errorx.Msg("无权操作该角色")
 	}
 
 	// 查询角色关联的菜单ID列表

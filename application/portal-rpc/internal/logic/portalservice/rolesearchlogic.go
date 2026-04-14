@@ -59,6 +59,17 @@ func (l *RoleSearchLogic) RoleSearch(in *pb.SearchSysRoleReq) (*pb.SearchSysRole
 		args = append(args, "%"+strings.ToLower(strings.TrimSpace(in.Code))+"%")
 	}
 
+	// 普通用户只能看到自己创建的角色
+	if !hasSuperAdminRole(l.ctx) {
+		username := currentUsername(l.ctx)
+		if username == "" {
+			l.Errorf("查询角色列表失败：当前用户信息缺失")
+			return nil, errorx.Msg("当前用户信息缺失")
+		}
+		conditions = append(conditions, "`created_by` = ? AND")
+		args = append(args, username)
+	}
+
 	// 去掉最后一个 " AND "，避免 SQL 语法错误
 	query := utils.RemoveQueryADN(conditions)
 

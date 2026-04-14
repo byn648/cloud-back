@@ -57,6 +57,12 @@ func (l *RoleUpdateLogic) RoleUpdate(in *pb.UpdateSysRoleReq) (*pb.UpdateSysRole
 		return nil, errorx.Msg("查询角色信息失败")
 	}
 
+	// 普通用户只能更新自己创建的角色
+	if !canOperateRole(l.ctx, existingRole) {
+		l.Errorf("更新角色失败：无权操作该角色, roleId: %d", in.Id)
+		return nil, errorx.Msg("无权操作该角色")
+	}
+
 	// 角色编码格式验证和规范化
 	roleCode := strings.ToLower(strings.TrimSpace(in.Code))
 	if len(roleCode) < 2 || len(roleCode) > 50 {

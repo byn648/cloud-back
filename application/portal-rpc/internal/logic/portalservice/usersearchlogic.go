@@ -66,8 +66,9 @@ func (l *UserSearchLogic) UserSearch(in *pb.SearchSysUserReq) (*pb.SearchSysUser
 	}
 
 	if in.CreatedBy != "" {
-		conditions = append(conditions, "created_by LIKE ?")
-		args = append(args, "%"+in.CreatedBy+"%")
+		createdBy := strings.TrimSpace(in.CreatedBy)
+		conditions = append(conditions, "(created_by = ? OR username = ?)")
+		args = append(args, createdBy, createdBy)
 	}
 	if in.UpdatedBy != "" {
 		conditions = append(conditions, "updated_by LIKE ?")

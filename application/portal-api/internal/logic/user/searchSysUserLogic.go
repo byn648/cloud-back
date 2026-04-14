@@ -2,10 +2,12 @@ package user
 
 import (
 	"context"
+	"strings"
 
 	"github.com/yanshicheng/kube-nova/application/portal-api/internal/svc"
 	"github.com/yanshicheng/kube-nova/application/portal-api/internal/types"
 	"github.com/yanshicheng/kube-nova/application/portal-rpc/pb"
+	"github.com/yanshicheng/kube-nova/common/handler/errorx"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -25,6 +27,17 @@ func NewSearchSysUserLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Sea
 }
 
 func (l *SearchSysUserLogic) SearchSysUser(req *types.SearchSysUserRequest) (resp *types.SearchSysUserResponse, err error) {
+	username, ok := l.ctx.Value("username").(string)
+	username = strings.TrimSpace(username)
+	if !ok || username == "" {
+		l.Errorf("搜索用户失败：当前用户信息缺失")
+		return nil, errorx.Msg("当前用户信息缺失")
+	}
+
+	// 仅保留内置超级管理员账号查看全部，其他账号统一按创建人过滤
+	if !strings.EqualFold(username, "super_admin") {
+		req.CreateBy = username
+	}
 
 	// 调用 RPC 服务搜索用户
 	res, err := l.svcCtx.PortalRpc.UserSearch(l.ctx, &pb.SearchSysUserReq{
