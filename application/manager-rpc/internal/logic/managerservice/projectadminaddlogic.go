@@ -63,6 +63,14 @@ func (l *ProjectAdminAddLogic) ProjectAdminAdd(in *pb.AddOnecProjectAdminReq) (*
 			return err
 		}
 
+		// 同步清理项目成员关系，确保成员范围与当前分配一致
+		deleteMemberQuery := "DELETE FROM `onec_project_member` WHERE `project_id` = ? AND `is_deleted` = 0"
+		_, err = session.ExecCtx(ctx, deleteMemberQuery, in.ProjectId)
+		if err != nil {
+			l.Error("删除项目成员失败", err)
+			return err
+		}
+
 		// 批量添加新的管理员
 		for _, userId := range in.UserIds {
 			admin := &model.OnecProjectAdmin{
@@ -75,6 +83,13 @@ func (l *ProjectAdminAddLogic) ProjectAdminAdd(in *pb.AddOnecProjectAdminReq) (*
 			_, err = session.ExecCtx(ctx, insertQuery, admin.ProjectId, admin.UserId)
 			if err != nil {
 				l.Error("添加项目管理员失败", err, "userId", userId)
+				return err
+			}
+
+			insertMemberQuery := "INSERT INTO `onec_project_member` (`project_id`, `user_id`) VALUES (?, ?)"
+			_, err = session.ExecCtx(ctx, insertMemberQuery, admin.ProjectId, admin.UserId)
+			if err != nil {
+				l.Error("添加项目成员失败", err, "userId", userId)
 				return err
 			}
 		}

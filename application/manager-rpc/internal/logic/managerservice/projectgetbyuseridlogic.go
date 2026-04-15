@@ -40,7 +40,7 @@ func (l *ProjectGetByUserIdLogic) ProjectGetByUserId(in *pb.GetOnecProjectsByUse
 	}
 
 	// 检查是否为超级管理员
-	if l.isSuperAdmin(roles) {
+	if l.isSuperAdmin(username, roles) {
 		l.Infof("用户 [username:%s] 拥有 SUPER_ADMIN 角色，返回所有项目", username)
 		return l.getAllProjects(searchName)
 	}
@@ -55,15 +55,6 @@ func (l *ProjectGetByUserIdLogic) ProjectGetByUserId(in *pb.GetOnecProjectsByUse
 		created_by = ?
 		OR EXISTS (
 			SELECT 1
-			FROM onec_project_admin opa
-			JOIN sys_user su ON su.id = opa.user_id
-			WHERE opa.project_id = onec_project.id
-				AND opa.is_deleted = 0
-				AND su.is_deleted = 0
-				AND su.username = ?
-		)
-		OR EXISTS (
-			SELECT 1
 			FROM onec_project_member opm
 			JOIN sys_user su ON su.id = opm.user_id
 			WHERE opm.project_id = onec_project.id
@@ -72,7 +63,7 @@ func (l *ProjectGetByUserIdLogic) ProjectGetByUserId(in *pb.GetOnecProjectsByUse
 				AND su.username = ?
 		)
 	)`
-	args := []any{username, username, username}
+	args := []any{username, username}
 	if searchName != "" {
 		queryStr += " AND LOWER(name) LIKE ?"
 		args = append(args, "%"+searchName+"%")
@@ -128,8 +119,11 @@ func (l *ProjectGetByUserIdLogic) resolveCurrentUserContext(in *pb.GetOnecProjec
 	return username, roles
 }
 
-// isSuperAdmin 检查角色列表中是否包含 SUPER_ADMIN
-func (l *ProjectGetByUserIdLogic) isSuperAdmin(roles []string) bool {
+// isSuperAdmin 检查是否为超级管理员（用户名兜底 + 角色判断）
+func (l *ProjectGetByUserIdLogic) isSuperAdmin(username string, roles []string) bool {
+	if strings.EqualFold(strings.TrimSpace(username), "super_admin") {
+		return true
+	}
 	for _, role := range roles {
 		if strings.EqualFold(role, "SUPER_ADMIN") {
 			return true
