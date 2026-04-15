@@ -248,18 +248,95 @@ docker-compose up -d
 
 ```bash
 # 初始化数据库
-mysql -u root -p < sql/kube_nova.sql
+mysql -h127.0.0.1 -P3306 -uroot -p < sql/db.sql
 
-# 启动各个服务 (示例)
-cd application/portal-api && go run portal.go &
-# ... 重复启动其他服务
+# 启动后端全部服务（会优先使用 *.local.yaml）
+./scripts/start-backend.sh all
+
+# 停止后端全部服务
+./scripts/stop-backend.sh all
+
+# 查看日志
+tail -f .local/backend/logs/portal-api.log
 
 ```
+
+启动脚本会优先读取 `*.local.yaml`。首次本地启动前，建议至少检查以下文件：
+
+1. `application/portal-rpc/etc/portal.local.yaml`
+2. `application/manager-rpc/etc/manager.local.yaml`
+3. `application/console-rpc/etc/console.local.yaml`
+4. `application/portal-api/etc/portal-api.local.yaml`
+5. `application/manager-api/etc/manager-api.local.yaml`
+6. `application/workload-api/etc/workload-api.local.yaml`
+7. `application/console-api/etc/console-api.local.yaml`
+
+关键字段建议统一确认：
+
+1. `Mysql.DataSource`（MySQL 地址、账号、库名）
+2. `Cache.Host`（Redis 地址）
+3. `StorageConf.Endpoints / AccessKey / AccessSecret / BucketName`（MinIO）
+4. API 服务端口（`8810/8811/8812/8818`）与 RPC 端口（`30010/30011/30012/30018`）
 
 ### 访问平台
 
 * **URL**：`http://your-domain:8080`
 * **默认凭证**：`admin` / `admin123` （请首次登录后修改）
+
+### 本地联调（cloud-web）
+
+`cloud-web` 默认开发端口和代理目标（`/Users/zhuzhumingyang/githubProjects/kube-nova/cloud-web/.env.development`）：
+
+* 前端：`5174`
+* Portal API：`8810`
+* Manager API：`8811`
+* Console API：`8818`
+* Workload API：`8812`
+
+后端本地配置（`*.local.yaml`）默认依赖：
+
+* MySQL：`127.0.0.1:3306`，库 `kube_nova`
+* Redis：`127.0.0.1:6379`
+* MinIO：`127.0.0.1:9000`
+
+---
+
+## 🔐 前后端权限对齐说明（当前实现）
+
+以下行为来自当前代码实现，用于避免“前端看到/提交”和“后端校验”不一致：
+
+1. 用户列表范围  
+非 `super_admin` 会按当前登录用户过滤创建人，后端查询条件为 `(created_by = 当前用户 OR username = 当前用户)`，保证可看到自己账号。
+
+2. 角色列表范围  
+非 `super_admin` 默认只可检索自己创建的角色（`created_by = 当前用户`）。
+
+3. 角色增删改与授权（菜单/API）  
+非 `super_admin` 仅可操作自己创建的角色；后端在 `RoleUpdate/RoleDel/RoleAddMenu/RoleAddApi/RoleSearchMenu/RoleSearchApi` 均有归属校验。
+
+4. 用户绑定角色  
+非 `super_admin` 只能给用户分配自己创建的角色；若包含无权限角色，后端会拒绝。
+
+5. 前端“分配角色”弹窗策略  
+前端展示逻辑为 `自己创建的角色 + 该用户已分配角色` 的并集（缺失项会按 `roleId` 回查），避免出现“角色已绑定但弹窗看不到”。
+
+---
+
+## 🗄️ 数据库表对齐检查
+
+以当前仓库 `sql/db.sql` 对照本地数据库 `kube_nova`：
+
+1. `onec_project_member` 已追加到 `sql/db.sql`。  
+2. 当前 `sql/db.sql` 与本地库应保持一致（均为 47 张表，按本地数据为准）。
+3. 复核命令：
+
+```bash
+# SQL 中定义的表数量
+awk 'BEGIN{IGNORECASE=1} /^CREATE TABLE /{gsub(/`/,"",$3); print $3}' sql/db.sql | sort -u | wc -l
+
+# 实际库表数量
+mysql -h127.0.0.1 -P3306 -uroot -p -D kube_nova -Nse "SHOW TABLES" | wc -l
+```
 
 ---
 

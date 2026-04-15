@@ -682,6 +682,22 @@ CREATE TABLE `onec_project_admin` (
   KEY `idx_is_deleted` (`is_deleted`)
 ) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='项目管理员表，关联项目与用户的多对多关系';
 /*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `onec_project_member`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `onec_project_member` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键，自增 ID',
+  `project_id` bigint unsigned NOT NULL DEFAULT '0' COMMENT '关联的项目 ID',
+  `user_id` bigint unsigned NOT NULL DEFAULT '0' COMMENT '关联的用户 ID',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
+  `is_deleted` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否已删除，软删除标记',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_project_user` (`project_id`,`user_id`),
+  KEY `idx_project_id` (`project_id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_is_deleted` (`is_deleted`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='项目成员表，关联项目与用户的多对多关系';
+/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `onec_project_application`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
