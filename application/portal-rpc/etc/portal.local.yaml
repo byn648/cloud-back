@@ -2,7 +2,7 @@ Name: portal.rpc
 ListenOn: 0.0.0.0:30010
 Timeout: 30000
 DemoMode: false
-PortalName: "Kube-Nova 云原生平台"
+PortalName: "Kube-Nova 云原生平台" 
 PortalUrl: "http://127.0.0.1:5174"
 
 Log:
@@ -30,7 +30,7 @@ Cache:
   PingTimeout: 3s
 
 Mysql:
-  DataSource: root:zmy02284310@tcp(127.0.0.1:3306)/kube_nova?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s
+  DataSource: root:121866999@tcp(127.0.0.1:3306)/kube_nova?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s
   MaxOpenConns: 100
   MaxIdleConns: 10
   ConnMaxLifetime: 30m

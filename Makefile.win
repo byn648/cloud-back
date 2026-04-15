@@ -1,0 +1,44 @@
+# Windows 兼容的 Makefile (Makefile.win)
+# 使用方法: make -f Makefile.win <target>
+
+APPLICATION_DIR = application
+
+.PHONY: run-portal-api run-portal-rpc run-manager-api run-manager-rpc run-workload-api run-console-api run-console-rpc help
+
+run-portal-api: 
+	@echo "正在运行 portal-api 服务..."
+	@go run $(APPLICATION_DIR)/portal-api/portal.go -f $(APPLICATION_DIR)/portal-api/etc/portal-api.yaml
+
+run-portal-rpc: 
+	@echo "正在运行 portal-rpc 服务..."
+	@go run $(APPLICATION_DIR)/portal-rpc/portal.go -f $(APPLICATION_DIR)/portal-rpc/etc/portal.yaml
+
+run-manager-api: 
+	@echo "正在运行 manager-api 服务..."
+	@go run $(APPLICATION_DIR)/manager-api/manager.go -f $(APPLICATION_DIR)/manager-api/etc/manager-api.yaml
+
+run-manager-rpc: 
+	@echo "正在运行 manager-rpc 服务..."
+	@go run $(APPLICATION_DIR)/manager-rpc/manager.go -f $(APPLICATION_DIR)/manager-rpc/etc/manager.yaml
+
+run-workload-api: 
+	@echo "正在运行 workload-api 服务..."
+	@go run $(APPLICATION_DIR)/workload-api/workload.go -f $(APPLICATION_DIR)/workload-api/etc/workload-api.yaml
+
+run-console-api: 
+	@echo "正在运行 console-api 服务..."
+	@go run $(APPLICATION_DIR)/console-api/console.go -f $(APPLICATION_DIR)/console-api/etc/console-api.yaml
+
+run-console-rpc: 
+	@echo "正在运行 console-rpc 服务..."
+	@go run $(APPLICATION_DIR)/console-rpc/console.go -f $(APPLICATION_DIR)/console-rpc/etc/console.yaml
+
+help: 
+	@echo "Windows 可用的启动命令:"
+	@echo "  make -f Makefile.win run-portal-rpc"
+	@echo "  make -f Makefile.win run-portal-api"
+	@echo "  make -f Makefile.win run-manager-rpc"
+	@echo "  make -f Makefile.win run-manager-api"
+	@echo "  make -f Makefile.win run-workload-api"
+	@echo "  make -f Makefile.win run-console-rpc"
+	@echo "  make -f Makefile.win run-console-api"
