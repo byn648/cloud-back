@@ -54,7 +54,7 @@ func (l *ProjectSearchLogic) ProjectSearch(in *pb.SearchOnecProjectReq) (*pb.Sea
 		args = append(args, in.Uuid)
 	}
 
-	username, roles := l.getCurrentUserContext()
+	username, roles, userId := l.getCurrentUserContext()
 	if !l.isSuperAdmin(username, roles) {
 		if strings.TrimSpace(username) == "" {
 			// 普通用户但上下文缺失用户名时，返回空列表避免越权
@@ -66,7 +66,7 @@ func (l *ProjectSearchLogic) ProjectSearch(in *pb.SearchOnecProjectReq) (*pb.Sea
 		if queryStr != "" {
 			queryStr += " AND "
 		}
-		visibilityClause, visibilityArgs := l.buildProjectVisibilityClause(username)
+		visibilityClause, visibilityArgs := l.buildProjectVisibilityClause(username, userId)
 		queryStr += visibilityClause
 		args = append(args, visibilityArgs...)
 	}
@@ -114,7 +114,7 @@ func (l *ProjectSearchLogic) ProjectSearch(in *pb.SearchOnecProjectReq) (*pb.Sea
 	}, nil
 }
 
-func (l *ProjectSearchLogic) getCurrentUserContext() (string, []string) {
+func (l *ProjectSearchLogic) getCurrentUserContext() (string, []string, uint64) {
 	username := ""
 	if ctxUsername, ok := l.ctx.Value("username").(string); ok {
 		username = ctxUsername
@@ -125,7 +125,12 @@ func (l *ProjectSearchLogic) getCurrentUserContext() (string, []string) {
 		roles = ctxRoles
 	}
 
-	return username, roles
+	userId := uint64(0)
+	if ctxUserId, ok := l.ctx.Value("userId").(uint64); ok {
+		userId = ctxUserId
+	}
+
+	return username, roles, userId
 }
 
 func (l *ProjectSearchLogic) isSuperAdmin(username string, roles []string) bool {
@@ -140,7 +145,20 @@ func (l *ProjectSearchLogic) isSuperAdmin(username string, roles []string) bool 
 	return false
 }
 
-func (l *ProjectSearchLogic) buildProjectVisibilityClause(username string) (string, []interface{}) {
+func (l *ProjectSearchLogic) buildProjectVisibilityClause(username string, userId uint64) (string, []interface{}) {
+	if userId > 0 {
+		clause := `(
+		created_by = ?
+		OR EXISTS (
+			SELECT 1
+			FROM onec_project_member opm
+			WHERE opm.project_id = onec_project.id
+				AND opm.is_deleted = 0
+				AND opm.user_id = ?
+		)
+	)`
+		return clause, []interface{}{username, userId}
+	}
 	clause := `(
 		created_by = ?
 		OR EXISTS (

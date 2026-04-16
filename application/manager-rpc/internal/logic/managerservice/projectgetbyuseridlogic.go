@@ -28,7 +28,7 @@ func NewProjectGetByUserIdLogic(ctx context.Context, svcCtx *svc.ServiceContext)
 }
 
 func (l *ProjectGetByUserIdLogic) ProjectGetByUserId(in *pb.GetOnecProjectsByUserIdReq) (*pb.GetOnecProjectsByUserIdResp, error) {
-	username, roles := l.resolveCurrentUserContext(in)
+	username, roles, userId := l.resolveCurrentUserContext(in)
 
 	// 标准化搜索名称
 	searchName := ""
@@ -50,20 +50,8 @@ func (l *ProjectGetByUserIdLogic) ProjectGetByUserId(in *pb.GetOnecProjectsByUse
 		return nil, errorx.Msg("用户名无效")
 	}
 
-	// 查询当前用户创建的项目
-	queryStr := `(
-		created_by = ?
-		OR EXISTS (
-			SELECT 1
-			FROM onec_project_member opm
-			JOIN sys_user su ON su.id = opm.user_id
-			WHERE opm.project_id = onec_project.id
-				AND opm.is_deleted = 0
-				AND su.is_deleted = 0
-				AND su.username = ?
-		)
-	)`
-	args := []any{username, username}
+	// 查询当前用户创建的项目，或作为项目成员（优先按 user_id 关联成员表，避免仅依赖用户名）
+	queryStr, args := l.buildUserProjectVisibilitySQL(username, userId)
 	if searchName != "" {
 		queryStr += " AND LOWER(name) LIKE ?"
 		args = append(args, "%"+searchName+"%")
@@ -105,7 +93,7 @@ func (l *ProjectGetByUserIdLogic) ProjectGetByUserId(in *pb.GetOnecProjectsByUse
 	return &pb.GetOnecProjectsByUserIdResp{Data: projects}, nil
 }
 
-func (l *ProjectGetByUserIdLogic) resolveCurrentUserContext(in *pb.GetOnecProjectsByUserIdReq) (string, []string) {
+func (l *ProjectGetByUserIdLogic) resolveCurrentUserContext(in *pb.GetOnecProjectsByUserIdReq) (string, []string, uint64) {
 	username := ""
 	if ctxUsername, ok := l.ctx.Value("username").(string); ok {
 		username = ctxUsername
@@ -116,7 +104,40 @@ func (l *ProjectGetByUserIdLogic) resolveCurrentUserContext(in *pb.GetOnecProjec
 		roles = ctxRoles
 	}
 
-	return username, roles
+	userId := in.UserId
+	if ctxUserId, ok := l.ctx.Value("userId").(uint64); ok && ctxUserId != 0 {
+		userId = ctxUserId
+	}
+
+	return username, roles, userId
+}
+
+// buildUserProjectVisibilitySQL 构造「创建人或项目成员」条件；有 userId 时成员条件走 opm.user_id，与 JWT 一致
+func (l *ProjectGetByUserIdLogic) buildUserProjectVisibilitySQL(username string, userId uint64) (string, []any) {
+	if userId > 0 {
+		return `(
+		created_by = ?
+		OR EXISTS (
+			SELECT 1
+			FROM onec_project_member opm
+			WHERE opm.project_id = onec_project.id
+				AND opm.is_deleted = 0
+				AND opm.user_id = ?
+		)
+	)`, []any{username, userId}
+	}
+	return `(
+		created_by = ?
+		OR EXISTS (
+			SELECT 1
+			FROM onec_project_member opm
+			JOIN sys_user su ON su.id = opm.user_id
+			WHERE opm.project_id = onec_project.id
+				AND opm.is_deleted = 0
+				AND su.is_deleted = 0
+				AND su.username = ?
+		)
+	)`, []any{username, username}
 }
 
 // isSuperAdmin 检查是否为超级管理员（用户名兜底 + 角色判断）
