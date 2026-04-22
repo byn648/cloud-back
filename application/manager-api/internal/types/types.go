@@ -155,43 +155,43 @@ type AddProjectWorkspaceRequest struct {
 	ClusterUuid                             string `json:"clusterUuid" validate:"required,uuid"`                         // 集群UUID
 	Name                                    string `json:"name" validate:"required,min=1,max=100"`                       // 工作空间名称
 	Namespace                               string `json:"namespace" validate:"required"`                                // Kubernetes命名空间
-	Description                             string `json:"description" validate:"omitempty,max=500"`                     // 工作空间描述
+	Description                             string `json:"description,optional" validate:"omitempty,max=500"`                     // 工作空间描述
 	CpuAllocated                            string `json:"cpuAllocated" validate:"required,gt=0"`                        // CPU核心数
 	MemAllocated                            string `json:"memAllocated" validate:"required,gt=0"`                        // 内存（GiB）
-	StorageAllocated                        string `json:"storageAllocated" validate:"omitempty"`                        // 存储（GiB）
-	GpuAllocated                            string `json:"gpuAllocated" validate:"omitempty"`                            // GPU数量
+	StorageAllocated                        string `json:"storageAllocated,optional" validate:"omitempty"`                        // 存储（GiB）
+	GpuAllocated                            string `json:"gpuAllocated,optional" validate:"omitempty"`                            // GPU数量
 	PodsAllocated                           int64  `json:"podsAllocated" validate:"required,gt=0"`                       // Pod配额
-	ConfigmapAllocated                      int64  `json:"configmapAllocated" validate:"omitempty"`                      // ConfigMap配额
-	SecretAllocated                         int64  `json:"secretAllocated" validate:"omitempty"`                         // Secret配额
-	PvcAllocated                            int64  `json:"pvcAllocated" validate:"omitempty"`                            // PVC配额
-	EphemeralStorageAllocated               string `json:"ephemeralStorageAllocated" validate:"omitempty"`               // 临时存储配额
-	ServiceAllocated                        int64  `json:"serviceAllocated" validate:"omitempty"`                        // Service配额
-	LoadbalancersAllocated                  int64  `json:"loadbalancersAllocated" validate:"omitempty"`                  // LoadBalancer配额
-	NodeportsAllocated                      int64  `json:"nodeportsAllocated" validate:"omitempty"`                      // NodePort配额
-	DeploymentsAllocated                    int64  `json:"deploymentsAllocated" validate:"omitempty"`                    // Deployment配额
-	JobsAllocated                           int64  `json:"jobsAllocated" validate:"omitempty"`                           // Job配额
-	CronjobsAllocated                       int64  `json:"cronjobsAllocated" validate:"omitempty"`                       // CronJob配额
-	DaemonsetsAllocated                     int64  `json:"daemonsetsAllocated" validate:"omitempty"`                     // DaemonSet配额
-	StatefulsetsAllocated                   int64  `json:"statefulsetsAllocated" validate:"omitempty"`                   // StatefulSet配额
-	IngressesAllocated                      int64  `json:"ingressesAllocated" validate:"omitempty"`                      // Ingress配额
-	PodMaxCpu                               string `json:"podMaxCpu" validate:"omitempty"`                               // Pod最大CPU
-	PodMaxMemory                            string `json:"podMaxMemory" validate:"omitempty"`                            // Pod最大内存
-	PodMaxEphemeralStorage                  string `json:"podMaxEphemeralStorage" validate:"omitempty"`                  // Pod最大临时存储
-	PodMinCpu                               string `json:"podMinCpu" validate:"omitempty"`                               // Pod最小CPU
-	PodMinMemory                            string `json:"podMinMemory" validate:"omitempty"`                            // Pod最小内存
-	PodMinEphemeralStorage                  string `json:"podMinEphemeralStorage" validate:"omitempty"`                  // Pod最小临时存储
-	ContainerMaxCpu                         string `json:"containerMaxCpu" validate:"omitempty"`                         // 容器最大CPU
-	ContainerMaxMemory                      string `json:"containerMaxMemory" validate:"omitempty"`                      // 容器最大内存
-	ContainerMaxEphemeralStorage            string `json:"containerMaxEphemeralStorage" validate:"omitempty"`            // 容器最大临时存储
-	ContainerMinCpu                         string `json:"containerMinCpu" validate:"omitempty"`                         // 容器最小CPU
-	ContainerMinMemory                      string `json:"containerMinMemory" validate:"omitempty"`                      // 容器最小内存
-	ContainerMinEphemeralStorage            string `json:"containerMinEphemeralStorage" validate:"omitempty"`            // 容器最小临时存储
-	ContainerDefaultCpu                     string `json:"containerDefaultCpu" validate:"omitempty"`                     // 容器默认CPU
-	ContainerDefaultMemory                  string `json:"containerDefaultMemory" validate:"omitempty"`                  // 容器默认内存
-	ContainerDefaultEphemeralStorage        string `json:"containerDefaultEphemeralStorage" validate:"omitempty"`        // 容器默认临时存储
-	ContainerDefaultRequestCpu              string `json:"containerDefaultRequestCpu" validate:"omitempty"`              // 容器默认CPU请求
-	ContainerDefaultRequestMemory           string `json:"containerDefaultRequestMemory" validate:"omitempty"`           // 容器默认内存请求
-	ContainerDefaultRequestEphemeralStorage string `json:"containerDefaultRequestEphemeralStorage" validate:"omitempty"` // 容器默认临时存储请求
+	ConfigmapAllocated                      int64  `json:"configmapAllocated,optional" validate:"omitempty"`                      // ConfigMap配额
+	SecretAllocated                         int64  `json:"secretAllocated,optional" validate:"omitempty"`                         // Secret配额
+	PvcAllocated                            int64  `json:"pvcAllocated,optional" validate:"omitempty"`                            // PVC配额
+	EphemeralStorageAllocated               string `json:"ephemeralStorageAllocated,optional" validate:"omitempty"`               // 临时存储配额
+	ServiceAllocated                        int64  `json:"serviceAllocated,optional" validate:"omitempty"`                        // Service配额
+	LoadbalancersAllocated                  int64  `json:"loadbalancersAllocated,optional" validate:"omitempty"`                  // LoadBalancer配额
+	NodeportsAllocated                      int64  `json:"nodeportsAllocated,optional" validate:"omitempty"`                      // NodePort配额
+	DeploymentsAllocated                    int64  `json:"deploymentsAllocated,optional" validate:"omitempty"`                    // Deployment配额
+	JobsAllocated                           int64  `json:"jobsAllocated,optional" validate:"omitempty"`                           // Job配额
+	CronjobsAllocated                       int64  `json:"cronjobsAllocated,optional" validate:"omitempty"`                       // CronJob配额
+	DaemonsetsAllocated                     int64  `json:"daemonsetsAllocated,optional" validate:"omitempty"`                     // DaemonSet配额
+	StatefulsetsAllocated                   int64  `json:"statefulsetsAllocated,optional" validate:"omitempty"`                   // StatefulSet配额
+	IngressesAllocated                      int64  `json:"ingressesAllocated,optional" validate:"omitempty"`                      // Ingress配额
+	PodMaxCpu                               string `json:"podMaxCpu,optional" validate:"omitempty"`                               // Pod最大CPU
+	PodMaxMemory                            string `json:"podMaxMemory,optional" validate:"omitempty"`                            // Pod最大内存
+	PodMaxEphemeralStorage                  string `json:"podMaxEphemeralStorage,optional" validate:"omitempty"`                  // Pod最大临时存储
+	PodMinCpu                               string `json:"podMinCpu,optional" validate:"omitempty"`                               // Pod最小CPU
+	PodMinMemory                            string `json:"podMinMemory,optional" validate:"omitempty"`                            // Pod最小内存
+	PodMinEphemeralStorage                  string `json:"podMinEphemeralStorage,optional" validate:"omitempty"`                  // Pod最小临时存储
+	ContainerMaxCpu                         string `json:"containerMaxCpu,optional" validate:"omitempty"`                         // 容器最大CPU
+	ContainerMaxMemory                      string `json:"containerMaxMemory,optional" validate:"omitempty"`                      // 容器最大内存
+	ContainerMaxEphemeralStorage            string `json:"containerMaxEphemeralStorage,optional" validate:"omitempty"`            // 容器最大临时存储
+	ContainerMinCpu                         string `json:"containerMinCpu,optional" validate:"omitempty"`                         // 容器最小CPU
+	ContainerMinMemory                      string `json:"containerMinMemory,optional" validate:"omitempty"`                      // 容器最小内存
+	ContainerMinEphemeralStorage            string `json:"containerMinEphemeralStorage,optional" validate:"omitempty"`            // 容器最小临时存储
+	ContainerDefaultCpu                     string `json:"containerDefaultCpu,optional" validate:"omitempty"`                     // 容器默认CPU
+	ContainerDefaultMemory                  string `json:"containerDefaultMemory,optional" validate:"omitempty"`                  // 容器默认内存
+	ContainerDefaultEphemeralStorage        string `json:"containerDefaultEphemeralStorage,optional" validate:"omitempty"`        // 容器默认临时存储
+	ContainerDefaultRequestCpu              string `json:"containerDefaultRequestCpu,optional" validate:"omitempty"`              // 容器默认CPU请求
+	ContainerDefaultRequestMemory           string `json:"containerDefaultRequestMemory,optional" validate:"omitempty"`           // 容器默认内存请求
+	ContainerDefaultRequestEphemeralStorage string `json:"containerDefaultRequestEphemeralStorage,optional" validate:"omitempty"` // 容器默认临时存储请求
 }
 
 type Alert struct {
@@ -1837,43 +1837,43 @@ type UpdateProjectRequest struct {
 type UpdateProjectWorkspaceRequest struct {
 	Id                                      uint64 `path:"id" validate:"required,gt=0"`                                  // 主键ID
 	Name                                    string `json:"name" validate:"required,min=1,max=100"`                       // 工作空间名称
-	Description                             string `json:"description" validate:"omitempty,max=500"`                     // 工作空间描述
+	Description                             string `json:"description,optional" validate:"omitempty,max=500"`                     // 工作空间描述
 	CpuAllocated                            string `json:"cpuAllocated" validate:"required,gt=0"`                        // CPU核心数
 	MemAllocated                            string `json:"memAllocated" validate:"required,gt=0"`                        // 内存（GiB）
-	StorageAllocated                        string `json:"storageAllocated" validate:"omitempty"`                        // 存储（GiB）
-	GpuAllocated                            string `json:"gpuAllocated" validate:"omitempty"`                            // GPU数量
+	StorageAllocated                        string `json:"storageAllocated,optional" validate:"omitempty"`                        // 存储（GiB）
+	GpuAllocated                            string `json:"gpuAllocated,optional" validate:"omitempty"`                            // GPU数量
 	PodsAllocated                           int64  `json:"podsAllocated" validate:"required,gt=0"`                       // Pod配额
-	ConfigmapAllocated                      int64  `json:"configmapAllocated" validate:"omitempty"`                      // ConfigMap配额
-	SecretAllocated                         int64  `json:"secretAllocated" validate:"omitempty"`                         // Secret配额
-	PvcAllocated                            int64  `json:"pvcAllocated" validate:"omitempty"`                            // PVC配额
-	EphemeralStorageAllocated               string `json:"ephemeralStorageAllocated" validate:"omitempty"`               // 临时存储配额
-	ServiceAllocated                        int64  `json:"serviceAllocated" validate:"omitempty"`                        // Service配额
-	LoadbalancersAllocated                  int64  `json:"loadbalancersAllocated" validate:"omitempty"`                  // LoadBalancer配额
-	NodeportsAllocated                      int64  `json:"nodeportsAllocated" validate:"omitempty"`                      // NodePort配额
-	DeploymentsAllocated                    int64  `json:"deploymentsAllocated" validate:"omitempty"`                    // Deployment配额
-	JobsAllocated                           int64  `json:"jobsAllocated" validate:"omitempty"`                           // Job配额
-	CronjobsAllocated                       int64  `json:"cronjobsAllocated" validate:"omitempty"`                       // CronJob配额
-	DaemonsetsAllocated                     int64  `json:"daemonsetsAllocated" validate:"omitempty"`                     // DaemonSet配额
-	StatefulsetsAllocated                   int64  `json:"statefulsetsAllocated" validate:"omitempty"`                   // StatefulSet配额
-	IngressesAllocated                      int64  `json:"ingressesAllocated" validate:"omitempty"`                      // Ingress配额
-	PodMaxCpu                               string `json:"podMaxCpu" validate:"omitempty"`                               // Pod最大CPU
-	PodMaxMemory                            string `json:"podMaxMemory" validate:"omitempty"`                            // Pod最大内存
-	PodMaxEphemeralStorage                  string `json:"podMaxEphemeralStorage" validate:"omitempty"`                  // Pod最大临时存储
-	PodMinCpu                               string `json:"podMinCpu" validate:"omitempty"`                               // Pod最小CPU
-	PodMinMemory                            string `json:"podMinMemory" validate:"omitempty"`                            // Pod最小内存
-	PodMinEphemeralStorage                  string `json:"podMinEphemeralStorage" validate:"omitempty"`                  // Pod最小临时存储
-	ContainerMaxCpu                         string `json:"containerMaxCpu" validate:"omitempty"`                         // 容器最大CPU
-	ContainerMaxMemory                      string `json:"containerMaxMemory" validate:"omitempty"`                      // 容器最大内存
-	ContainerMaxEphemeralStorage            string `json:"containerMaxEphemeralStorage" validate:"omitempty"`            // 容器最大临时存储
-	ContainerMinCpu                         string `json:"containerMinCpu" validate:"omitempty"`                         // 容器最小CPU
-	ContainerMinMemory                      string `json:"containerMinMemory" validate:"omitempty"`                      // 容器最小内存
-	ContainerMinEphemeralStorage            string `json:"containerMinEphemeralStorage" validate:"omitempty"`            // 容器最小临时存储
-	ContainerDefaultCpu                     string `json:"containerDefaultCpu" validate:"omitempty"`                     // 容器默认CPU
-	ContainerDefaultMemory                  string `json:"containerDefaultMemory" validate:"omitempty"`                  // 容器默认内存
-	ContainerDefaultEphemeralStorage        string `json:"containerDefaultEphemeralStorage" validate:"omitempty"`        // 容器默认临时存储
-	ContainerDefaultRequestCpu              string `json:"containerDefaultRequestCpu" validate:"omitempty"`              // 容器默认CPU请求
-	ContainerDefaultRequestMemory           string `json:"containerDefaultRequestMemory" validate:"omitempty"`           // 容器默认内存请求
-	ContainerDefaultRequestEphemeralStorage string `json:"containerDefaultRequestEphemeralStorage" validate:"omitempty"` // 容器默认临时存储请求
+	ConfigmapAllocated                      int64  `json:"configmapAllocated,optional" validate:"omitempty"`                      // ConfigMap配额
+	SecretAllocated                         int64  `json:"secretAllocated,optional" validate:"omitempty"`                         // Secret配额
+	PvcAllocated                            int64  `json:"pvcAllocated,optional" validate:"omitempty"`                            // PVC配额
+	EphemeralStorageAllocated               string `json:"ephemeralStorageAllocated,optional" validate:"omitempty"`               // 临时存储配额
+	ServiceAllocated                        int64  `json:"serviceAllocated,optional" validate:"omitempty"`                        // Service配额
+	LoadbalancersAllocated                  int64  `json:"loadbalancersAllocated,optional" validate:"omitempty"`                  // LoadBalancer配额
+	NodeportsAllocated                      int64  `json:"nodeportsAllocated,optional" validate:"omitempty"`                      // NodePort配额
+	DeploymentsAllocated                    int64  `json:"deploymentsAllocated,optional" validate:"omitempty"`                    // Deployment配额
+	JobsAllocated                           int64  `json:"jobsAllocated,optional" validate:"omitempty"`                           // Job配额
+	CronjobsAllocated                       int64  `json:"cronjobsAllocated,optional" validate:"omitempty"`                       // CronJob配额
+	DaemonsetsAllocated                     int64  `json:"daemonsetsAllocated,optional" validate:"omitempty"`                     // DaemonSet配额
+	StatefulsetsAllocated                   int64  `json:"statefulsetsAllocated,optional" validate:"omitempty"`                   // StatefulSet配额
+	IngressesAllocated                      int64  `json:"ingressesAllocated,optional" validate:"omitempty"`                      // Ingress配额
+	PodMaxCpu                               string `json:"podMaxCpu,optional" validate:"omitempty"`                               // Pod最大CPU
+	PodMaxMemory                            string `json:"podMaxMemory,optional" validate:"omitempty"`                            // Pod最大内存
+	PodMaxEphemeralStorage                  string `json:"podMaxEphemeralStorage,optional" validate:"omitempty"`                  // Pod最大临时存储
+	PodMinCpu                               string `json:"podMinCpu,optional" validate:"omitempty"`                               // Pod最小CPU
+	PodMinMemory                            string `json:"podMinMemory,optional" validate:"omitempty"`                            // Pod最小内存
+	PodMinEphemeralStorage                  string `json:"podMinEphemeralStorage,optional" validate:"omitempty"`                  // Pod最小临时存储
+	ContainerMaxCpu                         string `json:"containerMaxCpu,optional" validate:"omitempty"`                         // 容器最大CPU
+	ContainerMaxMemory                      string `json:"containerMaxMemory,optional" validate:"omitempty"`                      // 容器最大内存
+	ContainerMaxEphemeralStorage            string `json:"containerMaxEphemeralStorage,optional" validate:"omitempty"`            // 容器最大临时存储
+	ContainerMinCpu                         string `json:"containerMinCpu,optional" validate:"omitempty"`                         // 容器最小CPU
+	ContainerMinMemory                      string `json:"containerMinMemory,optional" validate:"omitempty"`                      // 容器最小内存
+	ContainerMinEphemeralStorage            string `json:"containerMinEphemeralStorage,optional" validate:"omitempty"`            // 容器最小临时存储
+	ContainerDefaultCpu                     string `json:"containerDefaultCpu,optional" validate:"omitempty"`                     // 容器默认CPU
+	ContainerDefaultMemory                  string `json:"containerDefaultMemory,optional" validate:"omitempty"`                  // 容器默认内存
+	ContainerDefaultEphemeralStorage        string `json:"containerDefaultEphemeralStorage,optional" validate:"omitempty"`        // 容器默认临时存储
+	ContainerDefaultRequestCpu              string `json:"containerDefaultRequestCpu,optional" validate:"omitempty"`              // 容器默认CPU请求
+	ContainerDefaultRequestMemory           string `json:"containerDefaultRequestMemory,optional" validate:"omitempty"`           // 容器默认内存请求
+	ContainerDefaultRequestEphemeralStorage string `json:"containerDefaultRequestEphemeralStorage,optional" validate:"omitempty"` // 容器默认临时存储请求
 }
 
 type WorkspaceRankingItem struct {

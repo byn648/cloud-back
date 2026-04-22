@@ -30,3 +30,5 @@ local/*
 .claude
 .docs
 tmp
+.local/
+logs/
