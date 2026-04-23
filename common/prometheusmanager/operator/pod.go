@@ -1335,6 +1335,193 @@ func (p *PodOperatorImpl) GetDiskRate(namespace, pod string, timeRange *types.Ti
 	return metrics, nil
 }
 
+// GetContainerEnergy 获取容器能耗（基于 Kepler 指标）
+func (p *PodOperatorImpl) GetContainerEnergy(namespace, pod, container string, timeRange *types.TimeRange) (*types.ContainerEnergyMetrics, error) {
+	metrics := &types.ContainerEnergyMetrics{
+		Namespace:     namespace,
+		PodName:       pod,
+		ContainerName: container,
+	}
+
+	now := time.Now()
+	effectiveRange := &types.TimeRange{
+		Start: now.Add(-time.Hour),
+		End:   now,
+		Step:  "1m",
+	}
+
+	if timeRange != nil {
+		if !timeRange.Start.IsZero() {
+			effectiveRange.Start = timeRange.Start
+		}
+		if !timeRange.End.IsZero() {
+			effectiveRange.End = timeRange.End
+		}
+		if timeRange.Step != "" {
+			effectiveRange.Step = timeRange.Step
+		}
+	}
+
+	if effectiveRange.Step == "" {
+		effectiveRange.Step = p.calculateStep(effectiveRange.Start, effectiveRange.End)
+	}
+
+	window := p.calculateRateWindow(effectiveRange)
+	selector := fmt.Sprintf(`container_namespace="%s",pod_name="%s",container_name="%s"`, namespace, pod, container)
+
+	currentEnergyQuery := fmt.Sprintf(`sum(kepler_container_joules_total{%s})`, selector)
+	currentPowerQuery := fmt.Sprintf(`sum(rate(kepler_container_joules_total{%s}[%s]))`, selector, window)
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		if results, err := p.query(currentEnergyQuery, nil); err == nil && len(results) > 0 {
+			mu.Lock()
+			metrics.Current.JoulesTotal = results[0].Value
+			metrics.Current.Timestamp = results[0].Time
+			mu.Unlock()
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		if results, err := p.query(currentPowerQuery, nil); err == nil && len(results) > 0 {
+			mu.Lock()
+			metrics.Current.PowerWatts = results[0].Value
+			if metrics.Current.Timestamp.IsZero() {
+				metrics.Current.Timestamp = results[0].Time
+			}
+			mu.Unlock()
+		}
+	}()
+
+	wg.Wait()
+
+	var energyTrend []types.MetricValue
+	var powerTrend []types.MetricValue
+
+	var trendWg sync.WaitGroup
+	trendWg.Add(2)
+
+	go func() {
+		defer trendWg.Done()
+		if trendResults, err := p.queryRange(currentEnergyQuery, effectiveRange.Start, effectiveRange.End, effectiveRange.Step); err == nil && len(trendResults) > 0 && len(trendResults[0].Values) > 0 {
+			mu.Lock()
+			energyTrend = trendResults[0].Values
+			mu.Unlock()
+		}
+	}()
+
+	go func() {
+		defer trendWg.Done()
+		powerTrendQuery := fmt.Sprintf(`sum(rate(kepler_container_joules_total{%s}[%s]))`, selector, window)
+		if trendResults, err := p.queryRange(powerTrendQuery, effectiveRange.Start, effectiveRange.End, effectiveRange.Step); err == nil && len(trendResults) > 0 && len(trendResults[0].Values) > 0 {
+			mu.Lock()
+			powerTrend = trendResults[0].Values
+			mu.Unlock()
+		}
+	}()
+
+	trendWg.Wait()
+
+	pointMap := make(map[int64]*types.EnergyDataPoint)
+	for _, item := range energyTrend {
+		key := item.Timestamp.UnixNano()
+		point := pointMap[key]
+		if point == nil {
+			point = &types.EnergyDataPoint{
+				Timestamp: item.Timestamp,
+			}
+			pointMap[key] = point
+		}
+		point.JoulesTotal = item.Value
+	}
+
+	for _, item := range powerTrend {
+		key := item.Timestamp.UnixNano()
+		point := pointMap[key]
+		if point == nil {
+			point = &types.EnergyDataPoint{
+				Timestamp: item.Timestamp,
+			}
+			pointMap[key] = point
+		}
+		point.PowerWatts = item.Value
+	}
+
+	keys := make([]int64, 0, len(pointMap))
+	for key := range pointMap {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i] < keys[j]
+	})
+
+	metrics.Trend = make([]types.EnergyDataPoint, 0, len(keys))
+	for _, key := range keys {
+		point := pointMap[key]
+		if point.Timestamp.IsZero() {
+			point.Timestamp = time.Unix(0, key)
+		}
+		metrics.Trend = append(metrics.Trend, *point)
+	}
+
+	if metrics.Current.Timestamp.IsZero() && len(metrics.Trend) > 0 {
+		metrics.Current.Timestamp = metrics.Trend[len(metrics.Trend)-1].Timestamp
+	}
+	if metrics.Current.JoulesTotal <= 0 && len(metrics.Trend) > 0 {
+		metrics.Current.JoulesTotal = metrics.Trend[len(metrics.Trend)-1].JoulesTotal
+	}
+	if metrics.Current.PowerWatts <= 0 && len(metrics.Trend) > 0 {
+		metrics.Current.PowerWatts = metrics.Trend[len(metrics.Trend)-1].PowerWatts
+	}
+
+	if effectiveRange.End.After(effectiveRange.Start) {
+		metrics.Summary.DurationSeconds = int64(effectiveRange.End.Sub(effectiveRange.Start).Seconds())
+	}
+
+	if len(metrics.Trend) > 0 {
+		firstEnergy := metrics.Trend[0].JoulesTotal
+		lastEnergy := metrics.Trend[len(metrics.Trend)-1].JoulesTotal
+		metrics.Summary.EnergyDeltaJoules = lastEnergy - firstEnergy
+		if metrics.Summary.EnergyDeltaJoules < 0 {
+			// 容器重启或指标重置时，累计值可能回退，避免出现负能耗
+			metrics.Summary.EnergyDeltaJoules = 0
+		}
+
+		var powerSum float64
+		for _, point := range metrics.Trend {
+			powerSum += point.PowerWatts
+			if point.PowerWatts > metrics.Summary.MaxPowerWatts {
+				metrics.Summary.MaxPowerWatts = point.PowerWatts
+			}
+		}
+
+		metrics.Summary.AvgPowerWatts = powerSum / float64(len(metrics.Trend))
+	}
+
+	if metrics.Summary.DurationSeconds == 0 && len(metrics.Trend) > 1 {
+		start := metrics.Trend[0].Timestamp
+		end := metrics.Trend[len(metrics.Trend)-1].Timestamp
+		if end.After(start) {
+			metrics.Summary.DurationSeconds = int64(end.Sub(start).Seconds())
+		}
+	}
+
+	if metrics.Summary.AvgPowerWatts <= 0 && metrics.Summary.DurationSeconds > 0 && metrics.Summary.EnergyDeltaJoules > 0 {
+		metrics.Summary.AvgPowerWatts = metrics.Summary.EnergyDeltaJoules / float64(metrics.Summary.DurationSeconds)
+	}
+
+	if metrics.Summary.MaxPowerWatts <= 0 {
+		metrics.Summary.MaxPowerWatts = metrics.Current.PowerWatts
+	}
+
+	return metrics, nil
+}
+
 // ==================== Pod 状态相关方法 ====================
 
 // GetPodStatus 获取 Pod 状态

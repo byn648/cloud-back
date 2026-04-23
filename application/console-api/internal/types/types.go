@@ -562,6 +562,15 @@ type ContainerDiskMetrics struct {
 	Summary       DiskSummary     `json:"summary"`
 }
 
+type ContainerEnergyMetrics struct {
+	Namespace     string            `json:"namespace"`
+	PodName       string            `json:"podName"`
+	ContainerName string            `json:"containerName"`
+	Current       EnergySnapshot    `json:"current"`
+	Trend         []EnergyDataPoint `json:"trend"`
+	Summary       EnergySummary     `json:"summary"`
+}
+
 type ContainerEnvironment struct {
 	Namespace       string            `json:"namespace"`
 	PodName         string            `json:"podName"`
@@ -1037,6 +1046,25 @@ type DiskSummary struct {
 type EnvFromSource struct {
 	ConfigMapRef string `json:"configMapRef,optional"`
 	SecretRef    string `json:"secretRef,optional"`
+}
+
+type EnergyDataPoint struct {
+	Timestamp   int64   `json:"timestamp"`
+	JoulesTotal float64 `json:"joulesTotal"`
+	PowerWatts  float64 `json:"powerWatts"`
+}
+
+type EnergySnapshot struct {
+	Timestamp   int64   `json:"timestamp"`
+	JoulesTotal float64 `json:"joulesTotal"`
+	PowerWatts  float64 `json:"powerWatts"`
+}
+
+type EnergySummary struct {
+	DurationSeconds   int64   `json:"durationSeconds"`
+	EnergyDeltaJoules float64 `json:"energyDeltaJoules"`
+	AvgPowerWatts     float64 `json:"avgPowerWatts"`
+	MaxPowerWatts     float64 `json:"maxPowerWatts"`
 }
 
 type ErrorRateByDimension struct {
@@ -1537,6 +1565,20 @@ type GetContainerEnvironmentRequest struct {
 
 type GetContainerEnvironmentResponse struct {
 	Data ContainerEnvironment `json:"data"`
+}
+
+type GetContainerEnergyRequest struct {
+	ClusterUuid   string `form:"clusterUuid" validate:"required"`
+	Namespace     string `form:"namespace" validate:"required"`
+	PodName       string `form:"podName" validate:"required"`
+	ContainerName string `form:"containerName" validate:"required"`
+	Start         string `form:"start,optional"`
+	End           string `form:"end,optional"`
+	Step          string `form:"step,optional"`
+}
+
+type GetContainerEnergyResponse struct {
+	Data ContainerEnergyMetrics `json:"data"`
 }
 
 type GetContainerLogMetricsRequest struct {

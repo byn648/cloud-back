@@ -874,6 +874,12 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Handler: podmonitor.GetDiskRateHandler(serverCtx),
 				},
 				{
+					// 获取容器能耗指标
+					Method:  http.MethodGet,
+					Path:    "/energy/container",
+					Handler: podmonitor.GetContainerEnergyHandler(serverCtx),
+				},
+				{
 					// 获取文件描述符使用情况
 					Method:  http.MethodGet,
 					Path:    "/fd/usage",

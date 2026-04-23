@@ -310,6 +310,35 @@ type (
         Summary DiskRateSummary `json:"summary"`
     }
 
+        //================================能耗指标================================
+    EnergySnapshot {
+        Timestamp int64 `json:"timestamp"`
+        JoulesTotal float64 `json:"joulesTotal"`
+        PowerWatts float64 `json:"powerWatts"`
+    }
+
+    EnergyDataPoint {
+        Timestamp int64 `json:"timestamp"`
+        JoulesTotal float64 `json:"joulesTotal"`
+        PowerWatts float64 `json:"powerWatts"`
+    }
+
+    EnergySummary {
+        DurationSeconds int64 `json:"durationSeconds"`
+        EnergyDeltaJoules float64 `json:"energyDeltaJoules"`
+        AvgPowerWatts float64 `json:"avgPowerWatts"`
+        MaxPowerWatts float64 `json:"maxPowerWatts"`
+    }
+
+    ContainerEnergyMetrics {
+        Namespace string `json:"namespace"`
+        PodName string `json:"podName"`
+        ContainerName string `json:"containerName"`
+        Current EnergySnapshot `json:"current"`
+        Trend []EnergyDataPoint `json:"trend"`
+        Summary EnergySummary `json:"summary"`
+    }
+
         //================================Pod 状态指标================================
     ContainerState {
         ContainerName string `json:"containerName"`
@@ -791,6 +820,19 @@ type (
         Data DiskRateMetrics `json:"data"`
     }
 
+    GetContainerEnergyRequest {
+        ClusterUuid string `form:"clusterUuid" validate:"required"`
+        Namespace string `form:"namespace" validate:"required"`
+        PodName string `form:"podName" validate:"required"`
+        ContainerName string `form:"containerName" validate:"required"`
+        Start string `form:"start,optional"`
+        End string `form:"end,optional"`
+        Step string `form:"step,optional"`
+    }
+    GetContainerEnergyResponse {
+        Data ContainerEnergyMetrics `json:"data"`
+    }
+
         // Pod 状态相关
     GetPodStatusRequest {
         ClusterUuid string `form:"clusterUuid" validate:"required"`
@@ -1067,6 +1109,10 @@ service console-api {
     @handler GetDiskRateHandler
     get /disk/rate (GetDiskRateRequest) returns (GetDiskRateResponse)
 
+    @doc "获取容器能耗指标"
+    @handler GetContainerEnergyHandler
+    get /energy/container (GetContainerEnergyRequest) returns (GetContainerEnergyResponse)
+
     // ============ Pod 状态监控 ============
     @doc "获取 Pod 状态"
     @handler GetPodStatusHandler
@@ -1150,4 +1196,3 @@ service console-api {
     @handler GetTopPodsByNetworkHandler
     get /top/network (GetTopPodsByNetworkRequest) returns (GetTopPodsByNetworkResponse)
 }
-
