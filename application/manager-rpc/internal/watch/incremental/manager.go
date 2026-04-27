@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -57,6 +58,20 @@ type Manager struct {
 	isRunning int32
 	stopOnce  sync.Once
 	startTime time.Time
+}
+
+func withInternalSystemAuth(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if username, ok := ctx.Value("username").(string); ok && strings.TrimSpace(username) != "" {
+		return ctx
+	}
+
+	internalCtx := context.WithValue(ctx, "username", "super_admin")
+	internalCtx = context.WithValue(internalCtx, "roles", []string{"super_admin"})
+	return internalCtx
 }
 
 // NewManager 创建增量同步管理器
@@ -490,7 +505,7 @@ func (m *Manager) SyncClustersFromDB() (*SyncResult, error) {
 
 // addWatcherInternal 内部方法：添加集群监听器
 func (m *Manager) addWatcherInternal(clusterUUID, clusterName string) error {
-	client, err := m.k8sManager.GetCluster(m.ctx, clusterUUID)
+	client, err := m.k8sManager.GetCluster(withInternalSystemAuth(m.ctx), clusterUUID)
 	if err != nil {
 		return fmt.Errorf("获取集群客户端失败: %v", err)
 	}

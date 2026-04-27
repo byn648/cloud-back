@@ -5,6 +5,7 @@ import (
 
 	"github.com/yanshicheng/kube-nova/application/manager-rpc/internal/svc"
 	"github.com/yanshicheng/kube-nova/application/manager-rpc/pb"
+	"github.com/yanshicheng/kube-nova/common/handler/errorx"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -24,6 +25,16 @@ func NewGetClusterNetworkLogic(ctx context.Context, svcCtx *svc.ServiceContext) 
 }
 
 func (l *GetClusterNetworkLogic) GetClusterNetwork(in *pb.GetClusterNetworkReq) (*pb.GetClusterNetworkResp, error) {
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	canAccess, err := canAccessClusterByUUID(l.ctx, l.svcCtx, in.Uuid, username, roles, userID)
+	if err != nil {
+		l.Errorf("校验集群网络查看权限失败 [clusterUuid=%s]: %v", in.Uuid, err)
+		return nil, errorx.Msg("校验集群网络查看权限失败")
+	}
+	if !canAccess {
+		return nil, errorx.Msg("无权限查看该集群网络配置")
+	}
+
 	network, err := l.svcCtx.OnecClusterNetworkModel.FindOneByClusterUuid(l.ctx, in.Uuid)
 	if err != nil {
 		l.Errorf("获取集群网络详情失败: %s", err.Error())

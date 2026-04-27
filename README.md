@@ -209,59 +209,38 @@ Kube-Nova 通过 7 个专业化微服务实现清晰的关注点分离：
 
 ### 前置要求
 
-* Kubernetes 集群 1.21+
+* Go 1.25.5+（后端开发用）
 * MySQL 8.0+
 * Redis 7.0+
-* Go 1.25.5+（开发用）
+* MinIO（文件上传/对象存储相关功能会用到）
+* Node.js 20.19+（启动前端时需要）
+* Kubernetes 集群 1.21+（仅 Kubernetes 部署时需要）
 
-### 安装方式
+### 本地源码启动（推荐开发）
 
-#### 1. Kubernetes 部署（推荐）
+当前仓库是后端 Go-Zero 多服务项目，前端不在本仓库。源码启动顺序是：启动本地依赖 → 初始化数据库 → 启动后端服务 → 另开前端目录联调。
 
-```bash
-# 克隆仓库
-git clone [https://github.com/yanshicheng/kube-nova.git](https://github.com/yanshicheng/kube-nova.git)
-cd kube-nova
+#### 1. 准备本地依赖
 
-# 应用 Kubernetes 清单
-kubectl apply -f manifests/
+默认 `*.local.yaml` 会连接以下本地服务：
 
-# 检查部署状态
-kubectl get pods -n kube-nova
+| 依赖 | 默认地址 |
+| --- | --- |
+| MySQL | `127.0.0.1:3306`，数据库 `kube_nova` |
+| Redis | `127.0.0.1:6379` |
+| MinIO | `127.0.0.1:9000` |
 
-# 访问平台 (端口转发)
-kubectl port-forward -n kube-nova svc/kube-nova-web 8080:80
-
-```
-
-#### 2. Docker Compose
+初始化数据库：
 
 ```bash
-git clone [https://github.com/yanshicheng/kube-nova.git](https://github.com/yanshicheng/kube-nova.git)
-cd kube-nova
-docker-compose up -d
-# 访问 http://localhost:8080
+# 创建数据库
+mysql -h127.0.0.1 -P3306 -uroot -p -e "CREATE DATABASE IF NOT EXISTS kube_nova DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
+# 导入表结构和初始化数据
+mysql -h127.0.0.1 -P3306 -uroot -p kube_nova < sql/db.sql
 ```
 
-#### 3. 本地开发
-
-```bash
-# 初始化数据库
-mysql -h127.0.0.1 -P3306 -uroot -p < sql/db.sql
-
-# 启动后端全部服务（会优先使用 *.local.yaml）
-./scripts/start-backend.sh all
-
-# 停止后端全部服务
-./scripts/stop-backend.sh all
-
-# 查看日志
-tail -f .local/backend/logs/portal-api.log
-
-```
-
-启动脚本会优先读取 `*.local.yaml`。首次本地启动前，建议至少检查以下文件：
+如果本机 MySQL、Redis、MinIO 的账号或端口不同，先改这些本地配置文件：
 
 1. `application/portal-rpc/etc/portal.local.yaml`
 2. `application/manager-rpc/etc/manager.local.yaml`
@@ -271,33 +250,80 @@ tail -f .local/backend/logs/portal-api.log
 6. `application/workload-api/etc/workload-api.local.yaml`
 7. `application/console-api/etc/console-api.local.yaml`
 
-关键字段建议统一确认：
+重点检查 `Mysql.DataSource`、`Cache.Host`、`StorageConf.Endpoints`、`StorageConf.AccessKey`、`StorageConf.AccessSecret`、`StorageConf.BucketName`。
 
-1. `Mysql.DataSource`（MySQL 地址、账号、库名）
-2. `Cache.Host`（Redis 地址）
-3. `StorageConf.Endpoints / AccessKey / AccessSecret / BucketName`（MinIO）
-4. API 服务端口（`8810/8811/8812/8818`）与 RPC 端口（`30010/30011/30012/30018`）
+#### 2. 启动后端
 
-### 访问平台
+```bash
+# 启动全部后端服务，脚本会优先使用 *.local.yaml
+./scripts/start-backend.sh all
+
+# 只启动指定服务，例如只启动登录相关服务
+./scripts/start-backend.sh portal-rpc portal-api
+
+# 快速重启时复用已编译二进制
+./scripts/start-backend.sh --skip-build all
+
+# 查看日志
+tail -f .local/backend/logs/portal-api.log
+
+# 停止全部后端服务
+./scripts/stop-backend.sh all
+```
+
+启动后的默认端口：
+
+| 服务 | 端口 | 说明 |
+| --- | --- | --- |
+| `portal-rpc` | `30010` | 用户、认证、权限 RPC |
+| `manager-rpc` | `30011` | 集群、项目、审计 RPC |
+| `console-rpc` | `30018` | 控制台 RPC |
+| `portal-api` | `8810` | 登录、用户、菜单等 HTTP API |
+| `manager-api` | `8811` | 集群、项目等 HTTP API |
+| `workload-api` | `8812` | 工作负载 HTTP API |
+| `console-api` | `8818` | 监控、Pod 操作、控制台 HTTP API |
+
+检查端口是否已经监听：
+
+```bash
+for p in 30010 30011 30018 8810 8811 8812 8818; do
+  lsof -nP -iTCP:$p -sTCP:LISTEN
+done
+```
+
+#### 3. 启动前端联调
+
+如果使用本机配套的 `cloud-web` 前端：
+
+```bash
+cd /Users/zhuzhumingyang/githubProjects/kube-nova/cloud-web
+npm install
+npm run dev
+```
+
+默认访问地址是 `http://127.0.0.1:5174`。该前端的 Vite 代理默认转发到本仓库后端端口：`8810`、`8811`、`8812`、`8818`。
+
+### Kubernetes 部署
+
+```bash
+# 克隆仓库
+git clone https://github.com/yanshicheng/kube-nova.git
+cd kube-nova
+
+# 应用 Kubernetes 清单
+kubectl apply -f manifests/
+
+# 检查部署状态
+kubectl get pods -n kube-nova
+
+# 访问平台（端口转发）
+kubectl port-forward -n kube-nova svc/kube-nova-web 8080:80
+```
+
+### 访问账号
 
 * **URL**：`http://your-domain:8080`
 * **默认凭证**：`admin` / `admin123` （请首次登录后修改）
-
-### 本地联调（cloud-web）
-
-`cloud-web` 默认开发端口和代理目标（`/Users/zhuzhumingyang/githubProjects/kube-nova/cloud-web/.env.development`）：
-
-* 前端：`5174`
-* Portal API：`8810`
-* Manager API：`8811`
-* Console API：`8818`
-* Workload API：`8812`
-
-后端本地配置（`*.local.yaml`）默认依赖：
-
-* MySQL：`127.0.0.1:3306`，库 `kube_nova`
-* Redis：`127.0.0.1:6379`
-* MinIO：`127.0.0.1:9000`
 
 ---
 

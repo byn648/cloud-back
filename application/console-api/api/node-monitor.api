@@ -345,6 +345,8 @@ type (
         CPUUsage float64 `json:"cpuUsage"`
         MemoryUsage int64 `json:"memoryUsage"`
         RestartCount int64 `json:"restartCount"`
+        PodCurrentPowerWatts float64 `json:"podCurrentPowerWatts"`
+        PodEnergyDeltaJoules float64 `json:"podEnergyDeltaJoules"`
     }
 
         //================================ Node 对比 ================================
@@ -378,6 +380,39 @@ type (
         NodeName string `json:"nodeName"`
         Value float64 `json:"value"`
         Unit string `json:"unit"`
+    }
+
+        //================================ 微服务异常 ================================
+
+    MicroserviceAnomalySummary {
+        TotalEvents int64 `json:"totalEvents"`
+        HighRiskServices int64 `json:"highRiskServices"`
+        RelatedClusters int64 `json:"relatedClusters"`
+        ExtraPowerKwh float64 `json:"extraPowerKwh"`
+    }
+
+    MicroserviceAnomalyItem {
+        Id string `json:"id"`
+        ClusterUuid string `json:"clusterUuid"`
+        ClusterName string `json:"clusterName"`
+        NodeName string `json:"nodeName"`
+        Namespace string `json:"namespace"`
+        Service string `json:"service"`
+        Workload string `json:"workload"`
+        AnomalyType string `json:"anomalyType"`
+        Reason string `json:"reason"`
+        Severity string `json:"severity"`
+        CurrentPowerWatts float64 `json:"currentPowerWatts"`
+        BaselinePowerWatts float64 `json:"baselinePowerWatts"`
+        ExtraPowerKwh float64 `json:"extraPowerKwh"`
+        DeltaPercent float64 `json:"deltaPercent"`
+        DetectedAt int64 `json:"detectedAt"`
+    }
+
+    NodeMicroserviceAnomaly {
+        Summary MicroserviceAnomalySummary `json:"summary"`
+        Items []MicroserviceAnomalyItem `json:"items"`
+        Warnings []string `json:"warnings"`
     }
 
         //================================ 请求和响应结构 ================================
@@ -575,6 +610,18 @@ type (
         Data NodeRanking `json:"data"`
     }
 
+    GetNodeMicroserviceAnomalyRequest {
+        ClusterUuid string `form:"clusterUuid,optional"`
+        NodeName string `form:"nodeName,optional"`
+        Start string `form:"start,optional"`
+        End string `form:"end,optional"`
+        Limit int `form:"limit,default=200" validate:"min=1,max=1000"`
+        MinPowerWatts float64 `form:"minPowerWatts,optional"`
+    }
+    GetNodeMicroserviceAnomalyResponse {
+        Data NodeMicroserviceAnomaly `json:"data"`
+    }
+
     ListNodesMetricsRequest {
         ClusterUuid string `form:"clusterUuid" validate:"required"`
         Start string `form:"start,optional"`
@@ -671,6 +718,10 @@ service console-api {
     @doc "获取节点排行"
     @handler GetNodeRankingHandler
     get /ranking (GetNodeRankingRequest) returns (GetNodeRankingResponse)
+
+    @doc "获取微服务算电异常"
+    @handler GetNodeMicroserviceAnomalyHandler
+    get /microservice-anomaly (GetNodeMicroserviceAnomalyRequest) returns (GetNodeMicroserviceAnomalyResponse)
 
     @doc "列出所有节点指标"
     @handler ListNodesMetricsHandler

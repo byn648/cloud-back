@@ -25,7 +25,8 @@ func NewClusterSyncAllLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Cl
 
 func (l *ClusterSyncAllLogic) ClusterSyncAll(in *pb.ClusterSyncAllReq) (*pb.ClusterSyncAllResp, error) {
 	go func() {
-		err := l.svcCtx.SyncOperator.SyncAll(context.Background(), in.Operator, true)
+		syncCtx := buildClusterSyncContext(l.ctx, in.Operator)
+		err := l.svcCtx.SyncOperator.SyncAll(syncCtx, in.Operator, true)
 		if err != nil {
 			return
 		}

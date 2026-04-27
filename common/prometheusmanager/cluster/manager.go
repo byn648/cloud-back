@@ -23,7 +23,8 @@ const (
 	configCacheTTL         = 604800 // Redis 配置缓存时间（秒）- 7天
 
 	// 本地缓存 TTL
-	localCacheTTL = 5 * time.Minute // 本地缓存 5 分钟后重新验证
+	localCacheTTL    = 5 * time.Minute  // 本地缓存 5 分钟后重新验证
+	negativeCacheTTL = 20 * time.Second // 失败缓存，避免错误配置导致高频重试
 )
 
 // cachedClient 带时间戳的缓存客户端
@@ -37,11 +38,21 @@ func (c *cachedClient) isExpired() bool {
 	return time.Since(c.createdAt) > localCacheTTL
 }
 
+type cachedFailure struct {
+	err       error
+	createdAt time.Time
+}
+
+func (c *cachedFailure) isExpired() bool {
+	return time.Since(c.createdAt) > negativeCacheTTL
+}
+
 // PrometheusManager Prometheus 多实例管理器（支持多副本部署）
 type PrometheusManager struct {
 	mu         sync.RWMutex
 	localCache map[string]*cachedClient // 本地客户端缓存（带 TTL）
-	redis      *redis.Redis             // Redis 存储
+	failCache  map[string]*cachedFailure
+	redis      *redis.Redis // Redis 存储
 	log        logx.Logger
 	ctx        context.Context
 	cancel     context.CancelFunc // 用于关闭 cleanupLoop
@@ -53,6 +64,7 @@ func NewPrometheusManager(managerRpc managerservice.ManagerService, redisClient 
 	ctx, cancel := context.WithCancel(context.Background())
 	pm := &PrometheusManager{
 		localCache: make(map[string]*cachedClient),
+		failCache:  make(map[string]*cachedFailure),
 		redis:      redisClient,
 		log:        logx.WithContext(ctx),
 		ctx:        ctx,
@@ -93,6 +105,13 @@ func (m *PrometheusManager) cleanupExpiredCache() {
 			}
 			delete(m.localCache, uuid)
 			m.log.Debugf("清理过期本地缓存: uuid=%s", uuid)
+		}
+	}
+
+	for uuid, cached := range m.failCache {
+		if cached.isExpired() {
+			delete(m.failCache, uuid)
+			m.log.Debugf("清理过期失败缓存: uuid=%s", uuid)
 		}
 	}
 }
@@ -143,6 +162,7 @@ func (m *PrometheusManager) Add(config *types.PrometheusConfig) error {
 		createdAt: time.Now(),
 	}
 	m.mu.Unlock()
+	m.clearCachedFailure(config.UUID)
 
 	m.log.Infof("Prometheus 客户端添加成功: uuid=%s, endpoint=%s", config.UUID, config.Endpoint)
 	return nil
@@ -171,6 +191,7 @@ func (m *PrometheusManager) Delete(uuid string) error {
 		}
 		delete(m.localCache, uuid)
 	}
+	delete(m.failCache, uuid)
 	m.mu.Unlock()
 
 	m.log.Infof("Prometheus 客户端删除成功: uuid=%s", uuid)
@@ -200,6 +221,45 @@ func (m *PrometheusManager) getConfigFromRedis(uuid string) (*types.PrometheusCo
 	return &config, nil
 }
 
+func (m *PrometheusManager) loadCachedFailure(uuid string) error {
+	m.mu.RLock()
+	cached, exists := m.failCache[uuid]
+	m.mu.RUnlock()
+	if !exists || cached == nil {
+		return nil
+	}
+	if cached.isExpired() {
+		m.mu.Lock()
+		if latest, ok := m.failCache[uuid]; ok && latest == cached {
+			delete(m.failCache, uuid)
+		}
+		m.mu.Unlock()
+		return nil
+	}
+	return cached.err
+}
+
+func (m *PrometheusManager) storeCachedFailure(uuid string, err error) {
+	if uuid == "" || err == nil {
+		return
+	}
+	m.mu.Lock()
+	m.failCache[uuid] = &cachedFailure{
+		err:       err,
+		createdAt: time.Now(),
+	}
+	m.mu.Unlock()
+}
+
+func (m *PrometheusManager) clearCachedFailure(uuid string) {
+	if uuid == "" {
+		return
+	}
+	m.mu.Lock()
+	delete(m.failCache, uuid)
+	m.mu.Unlock()
+}
+
 // Get 获取 Prometheus 客户端
 func (m *PrometheusManager) Get(uuid string) (types.PrometheusClient, error) {
 	// 1. 先尝试从本地缓存获取（未过期的）
@@ -212,16 +272,33 @@ func (m *PrometheusManager) Get(uuid string) (types.PrometheusClient, error) {
 		return cached.client, nil
 	}
 
-	// 2. 缓存不存在或已过期，从 Redis 获取配置
+	// 2. 短时失败缓存，避免错误配置导致高频重试放大延迟。
+	if cachedErr := m.loadCachedFailure(uuid); cachedErr != nil {
+		return nil, cachedErr
+	}
+
+	// 3. 缓存不存在或已过期，从 Redis 获取配置
 	config, err := m.getConfigFromRedis(uuid)
 	if err == nil {
 		// Redis 中有配置，创建客户端
-		return m.createAndCacheClient(config)
+		client, createErr := m.createAndCacheClient(config)
+		if createErr != nil {
+			m.storeCachedFailure(uuid, createErr)
+			return nil, createErr
+		}
+		m.clearCachedFailure(uuid)
+		return client, nil
 	}
 
-	// 3. Redis 中没有配置，从 RPC 加载
+	// 4. Redis 中没有配置，从 RPC 加载
 	m.log.Infof("Redis 中不存在配置，从 RPC 加载 Prometheus: uuid=%s", uuid)
-	return m.loadFromRPC(uuid)
+	client, loadErr := m.loadFromRPC(uuid)
+	if loadErr != nil {
+		m.storeCachedFailure(uuid, loadErr)
+		return nil, loadErr
+	}
+	m.clearCachedFailure(uuid)
+	return client, nil
 }
 
 // createAndCacheClient 创建客户端并缓存到本地
@@ -248,6 +325,7 @@ func (m *PrometheusManager) createAndCacheClient(config *types.PrometheusConfig)
 		createdAt: time.Now(),
 	}
 	m.mu.Unlock()
+	m.clearCachedFailure(config.UUID)
 
 	m.log.Infof("成功创建并缓存 Prometheus 客户端: uuid=%s", config.UUID)
 	return client, nil
@@ -384,6 +462,7 @@ func (m *PrometheusManager) Reload(uuid string) error {
 		cached.client.Close()
 		delete(m.localCache, uuid)
 	}
+	delete(m.failCache, uuid)
 	m.mu.Unlock()
 
 	_, err := m.Get(uuid)
@@ -415,6 +494,7 @@ func (m *PrometheusManager) Close() error {
 	}
 
 	m.localCache = make(map[string]*cachedClient)
+	m.failCache = make(map[string]*cachedFailure)
 	m.log.Info("所有本地 Prometheus 客户端已关闭")
 	return lastErr
 }
@@ -430,6 +510,7 @@ func (m *PrometheusManager) CleanLocalCache() {
 		}
 		delete(m.localCache, uuid)
 	}
+	m.failCache = make(map[string]*cachedFailure)
 
 	m.log.Info("本地缓存已清理")
 }

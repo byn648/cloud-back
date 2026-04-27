@@ -465,6 +465,23 @@ CREATE TABLE `onec_cluster` (
   KEY `idx_cluster_type` (`cluster_type`) COMMENT '集群类型索引'
 ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Kubernetes集群主表，存储集群基础信息和状态';
 /*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `onec_cluster_member`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `onec_cluster_member` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键，自增 ID',
+  `cluster_uuid` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT '关联的集群UUID',
+  `user_id` bigint unsigned NOT NULL DEFAULT '0' COMMENT '关联的用户 ID',
+  `created_by` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT '记录创建人',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
+  `is_deleted` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否已删除，软删除标记',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_cluster_user` (`cluster_uuid`,`user_id`),
+  KEY `idx_cluster_uuid` (`cluster_uuid`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_is_deleted` (`is_deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='集群成员分配表，定义集群可见用户';
+/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `onec_cluster_app`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;

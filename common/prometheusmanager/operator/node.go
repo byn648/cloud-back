@@ -1719,6 +1719,7 @@ func (n *NodeOperatorImpl) GetNodePods(nodeName string, timeRange *types.TimeRan
 	}
 
 	window := n.calculateRateWindow(timeRange)
+	durationWindow := n.calculateDurationWindow(timeRange)
 
 	tasks := []queryTask{
 		{
@@ -1825,6 +1826,34 @@ func (n *NodeOperatorImpl) GetNodePods(nodeName string, timeRange *types.TimeRan
 		restartQuery := fmt.Sprintf(`sum by (namespace, pod) (kube_pod_container_status_restarts_total{node="%s"})`, nodeName)
 		restartResults, _ := n.query(restartQuery, nil)
 
+		// 批量查询所有 pod 当前功率（W）和时间窗能耗增量（J）
+		// 说明：
+		// kepler_container_joules_total 常见标签是 container_namespace/pod_name，
+		// 这里通过 label_replace 统一映射到 namespace/pod 再和 kube_pod_info(node=...) 做关联过滤。
+		podPowerQuery := fmt.Sprintf(`sum by (namespace, pod) (
+				label_replace(
+					label_replace(
+						rate(kepler_container_joules_total{container_name!="",container_name!="POD"}[%s]),
+						"namespace", "$1", "container_namespace", "(.*)"
+					),
+					"pod", "$1", "pod_name", "(.*)"
+				)
+				* on(namespace, pod) group_left() kube_pod_info{node="%s"}
+			)`, window, nodeName)
+		podPowerResults, _ := n.query(podPowerQuery, nil)
+
+		podEnergyDeltaQuery := fmt.Sprintf(`sum by (namespace, pod) (
+				label_replace(
+					label_replace(
+						increase(kepler_container_joules_total{container_name!="",container_name!="POD"}[%s]),
+						"namespace", "$1", "container_namespace", "(.*)"
+					),
+					"pod", "$1", "pod_name", "(.*)"
+				)
+				* on(namespace, pod) group_left() kube_pod_info{node="%s"}
+			)`, durationWindow, nodeName)
+		podEnergyDeltaResults, _ := n.query(podEnergyDeltaQuery, nil)
+
 		// 先构建该节点的 pod 集合
 		nodePods := make(map[string]bool)
 		for _, result := range podListResults {
@@ -1872,6 +1901,18 @@ func (n *NodeOperatorImpl) GetNodePods(nodeName string, timeRange *types.TimeRan
 			restartMap[key] = int64(r.Value)
 		}
 
+		podPowerMap := make(map[string]float64)
+		for _, r := range podPowerResults {
+			key := r.Metric["namespace"] + "/" + r.Metric["pod"]
+			podPowerMap[key] = r.Value
+		}
+
+		podEnergyDeltaMap := make(map[string]float64)
+		for _, r := range podEnergyDeltaResults {
+			key := r.Metric["namespace"] + "/" + r.Metric["pod"]
+			podEnergyDeltaMap[key] = r.Value
+		}
+
 		// 组装 Pod 列表
 		metrics.PodList = make([]types.NodePodBrief, 0, len(podListResults))
 		for _, result := range podListResults {
@@ -1883,12 +1924,14 @@ func (n *NodeOperatorImpl) GetNodePods(nodeName string, timeRange *types.TimeRan
 
 			key := ns + "/" + pod
 			brief := types.NodePodBrief{
-				Namespace:    ns,
-				PodName:      pod,
-				Phase:        phaseMap[key],
-				CPUUsage:     cpuMap[key],
-				MemoryUsage:  memMap[key],
-				RestartCount: restartMap[key],
+				Namespace:            ns,
+				PodName:              pod,
+				Phase:                phaseMap[key],
+				CPUUsage:             cpuMap[key],
+				MemoryUsage:          memMap[key],
+				RestartCount:         restartMap[key],
+				PodCurrentPowerWatts: podPowerMap[key],
+				PodEnergyDeltaJoules: podEnergyDeltaMap[key],
 			}
 
 			if brief.Phase == "" {
@@ -2413,6 +2456,24 @@ func (n *NodeOperatorImpl) calculateRateWindow(timeRange *types.TimeRange) strin
 		return "30m"
 	}
 	return "1h"
+}
+
+func (n *NodeOperatorImpl) calculateDurationWindow(timeRange *types.TimeRange) string {
+	if timeRange == nil || timeRange.Start.IsZero() || timeRange.End.IsZero() {
+		return "1h"
+	}
+
+	duration := timeRange.End.Sub(timeRange.Start)
+	if duration <= 0 {
+		return "1h"
+	}
+
+	seconds := int64(duration.Seconds())
+	if seconds < 60 {
+		seconds = 60
+	}
+
+	return fmt.Sprintf("%ds", seconds)
 }
 
 func (n *NodeOperatorImpl) calculateStep(start, end time.Time) string {

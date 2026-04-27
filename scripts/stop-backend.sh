@@ -21,11 +21,11 @@ service_port() {
   case "$1" in
     portal-rpc) echo "30010" ;;
     manager-rpc) echo "30011" ;;
-    console-rpc) echo "30012" ;;
+    console-rpc) echo "30018" ;;
     portal-api) echo "8810" ;;
     manager-api) echo "8811" ;;
     workload-api) echo "8812" ;;
-    console-api) echo "8813" ;;
+    console-api) echo "8818" ;;
     *) echo "" ;;
   esac
 }

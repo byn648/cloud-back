@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/yanshicheng/kube-nova/application/manager-rpc/internal/model"
@@ -159,7 +160,7 @@ func (l *ClusterAddLogic) ClusterAdd(in *pb.AddClusterRequest) (*pb.AddClusterRe
 		)
 		if err != nil {
 			l.Errorf("插入集群基本信息失败: %v", err)
-			return errorx.Msg("添加集群基本信息失败")
+			return buildClusterBasicInsertError(err)
 		}
 
 		if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
@@ -189,7 +190,7 @@ func (l *ClusterAddLogic) ClusterAdd(in *pb.AddClusterRequest) (*pb.AddClusterRe
 		)
 		if err != nil {
 			l.Errorf("插入集群认证信息失败: %v", err)
-			return errorx.Msg("添加集群认证信息失败")
+			return errorx.Msg(fmt.Sprintf("添加集群认证信息失败: %v", err))
 		}
 
 		if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
@@ -215,7 +216,7 @@ func (l *ClusterAddLogic) ClusterAdd(in *pb.AddClusterRequest) (*pb.AddClusterRe
 		)
 		if err != nil {
 			l.Errorf("插入费用配置绑定失败: %v", err)
-			return errorx.Msg("添加费用配置绑定失败")
+			return errorx.Msg(fmt.Sprintf("添加费用配置绑定失败: %v", err))
 		}
 
 		if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
@@ -277,7 +278,7 @@ func (l *ClusterAddLogic) ClusterAdd(in *pb.AddClusterRequest) (*pb.AddClusterRe
 			)
 			if err != nil {
 				l.Errorf("插入 Prometheus 应用配置失败: %v", err)
-				return errorx.Msg("添加 Prometheus 配置失败")
+				return errorx.Msg(fmt.Sprintf("添加 Prometheus 配置失败: %v", err))
 			}
 
 			if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
@@ -300,7 +301,7 @@ func (l *ClusterAddLogic) ClusterAdd(in *pb.AddClusterRequest) (*pb.AddClusterRe
 
 	// ==================== 6. 异步执行集群同步操作 ====================
 	go func() {
-		syncCtx := context.Background()
+		syncCtx := buildClusterSyncContext(l.ctx, in.CreatedBy)
 
 		if err := l.svcCtx.SyncOperator.SyncOneCLuster(syncCtx, uuid, in.CreatedBy, true); err != nil {
 			l.Errorf("集群同步失败: %v", err)
@@ -407,4 +408,30 @@ func (l *ClusterAddLogic) IsClusterConnectOk(in *pb.AddClusterRequest, clusterUu
 
 	l.Info("集群连接测试成功")
 	return nil
+}
+
+func buildClusterBasicInsertError(err error) error {
+	if err == nil {
+		return errorx.Msg("添加集群基本信息失败")
+	}
+
+	lowerText := strings.ToLower(err.Error())
+	if strings.Contains(lowerText, "duplicate entry") {
+		switch {
+		case strings.Contains(lowerText, "onec_cluster.uk_name"),
+			strings.Contains(lowerText, "uk_name"),
+			strings.Contains(lowerText, " for key 'name'"),
+			strings.Contains(lowerText, " for key `name`"):
+			return errorx.Msg("集群名称已存在，请更换名称后重试")
+		case strings.Contains(lowerText, "onec_cluster.uk_uuid"),
+			strings.Contains(lowerText, "uk_uuid"),
+			strings.Contains(lowerText, " for key 'uuid'"),
+			strings.Contains(lowerText, " for key `uuid`"):
+			return errorx.Msg("集群标识冲突，请重试")
+		default:
+			return errorx.Msg("集群信息已存在，请检查后重试")
+		}
+	}
+
+	return errorx.Msg(fmt.Sprintf("添加集群基本信息失败: %v", err))
 }

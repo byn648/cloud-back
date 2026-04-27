@@ -53,39 +53,53 @@ func (l *AppDefaultConfigLogic) AppDefaultConfig(in *pb.AppDefaultConfigReq) (*p
 
 	// 3. 查找集群中指定类型的默认应用配置
 	l.Infof("步骤3: 查找默认应用配置")
-	queryStr := "`cluster_uuid` = ? AND `app_type` = ? AND `is_default` = 1"
+	defaultQuery := "`cluster_uuid` = ? AND `app_type` = ? AND `is_default` = 1"
 	defaultApps, err := l.svcCtx.OnecClusterAppModel.SearchNoPage(
 		l.ctx,
 		"created_at", // 按创建时间排序
 		false,        // 降序，最新的在前面
-		queryStr,
+		defaultQuery,
 		in.ClusterUuid,
 		in.AppType,
 	)
-
-	var defaultApp *model.OnecClusterApp
-
-	if err != nil {
-		if errors.Is(err, model.ErrNotFound) {
-			l.Errorf("集群: %s, 未找到指定类型的默认应用配置 [appType=%d]", in.ClusterUuid, in.AppType)
-			return nil, errorx.Msg("未找到指定类型的默认应用配置")
-		}
+	if err != nil && !errors.Is(err, model.ErrNotFound) {
 		l.Errorf("查询默认应用配置失败: %v", err)
 		return nil, errorx.Msg("查询默认应用配置失败")
 	}
 
-	// 检查查询结果
-	if len(defaultApps) == 0 {
-		l.Errorf("集群: %s, 未找到指定类型的默认应用配置 [appType=%d]", in.ClusterUuid, in.AppType)
-		return nil, errorx.Msg("未找到指定类型的默认应用配置")
+	var defaultApp *model.OnecClusterApp
+	if len(defaultApps) > 0 {
+		// 保持兼容：历史数据可能错误地存在多条默认配置，这里取最新一条继续服务，避免全量报错。
+		if len(defaultApps) > 1 {
+			l.Errorf("集群: %s, 存在多个类型为%d的默认应用配置，已回退取最新一条", in.ClusterUuid, in.AppType)
+		}
+		defaultApp = defaultApps[0]
+	} else {
+		// 兜底：若未设置默认配置，则回退到该类型最新一条可用配置（兼容老数据）。
+		l.Infof("集群: %s 未设置默认应用配置，回退到同类型最新配置 [appType=%d]", in.ClusterUuid, in.AppType)
+		fallbackQuery := "`cluster_uuid` = ? AND `app_type` = ?"
+		fallbackApps, fallbackErr := l.svcCtx.OnecClusterAppModel.SearchNoPage(
+			l.ctx,
+			"created_at",
+			false,
+			fallbackQuery,
+			in.ClusterUuid,
+			in.AppType,
+		)
+		if fallbackErr != nil {
+			if errors.Is(fallbackErr, model.ErrNotFound) {
+				l.Errorf("集群: %s, 未找到指定类型的应用配置 [appType=%d]", in.ClusterUuid, in.AppType)
+				return nil, errorx.Msg("未找到指定类型的默认应用配置")
+			}
+			l.Errorf("查询应用配置失败: %v", fallbackErr)
+			return nil, errorx.Msg("查询默认应用配置失败")
+		}
+		if len(fallbackApps) == 0 {
+			l.Errorf("集群: %s, 未找到指定类型的应用配置 [appType=%d]", in.ClusterUuid, in.AppType)
+			return nil, errorx.Msg("未找到指定类型的默认应用配置")
+		}
+		defaultApp = fallbackApps[0]
 	}
-
-	if len(defaultApps) > 1 {
-		l.Errorf("集群: %s, 存在多个类型为%d的默认应用配置", in.ClusterUuid, in.AppType)
-		return nil, errorx.Msg("集群中存在多个类型为的默认应用配置")
-	}
-
-	defaultApp = defaultApps[0]
 
 	l.Infof("步骤4: 构建默认配置响应")
 

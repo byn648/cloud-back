@@ -151,16 +151,16 @@ type AddProjectRequest struct {
 }
 
 type AddProjectWorkspaceRequest struct {
-	ProjectClusterId                        uint64 `json:"projectClusterId" validate:"required,gt=0"`                    // 项目集群ID
-	ClusterUuid                             string `json:"clusterUuid" validate:"required,uuid"`                         // 集群UUID
-	Name                                    string `json:"name" validate:"required,min=1,max=100"`                       // 工作空间名称
-	Namespace                               string `json:"namespace" validate:"required"`                                // Kubernetes命名空间
+	ProjectClusterId                        uint64 `json:"projectClusterId" validate:"required,gt=0"`                             // 项目集群ID
+	ClusterUuid                             string `json:"clusterUuid" validate:"required,uuid"`                                  // 集群UUID
+	Name                                    string `json:"name" validate:"required,min=1,max=100"`                                // 工作空间名称
+	Namespace                               string `json:"namespace" validate:"required"`                                         // Kubernetes命名空间
 	Description                             string `json:"description,optional" validate:"omitempty,max=500"`                     // 工作空间描述
-	CpuAllocated                            string `json:"cpuAllocated" validate:"required,gt=0"`                        // CPU核心数
-	MemAllocated                            string `json:"memAllocated" validate:"required,gt=0"`                        // 内存（GiB）
+	CpuAllocated                            string `json:"cpuAllocated" validate:"required,gt=0"`                                 // CPU核心数
+	MemAllocated                            string `json:"memAllocated" validate:"required,gt=0"`                                 // 内存（GiB）
 	StorageAllocated                        string `json:"storageAllocated,optional" validate:"omitempty"`                        // 存储（GiB）
 	GpuAllocated                            string `json:"gpuAllocated,optional" validate:"omitempty"`                            // GPU数量
-	PodsAllocated                           int64  `json:"podsAllocated" validate:"required,gt=0"`                       // Pod配额
+	PodsAllocated                           int64  `json:"podsAllocated" validate:"required,gt=0"`                                // Pod配额
 	ConfigmapAllocated                      int64  `json:"configmapAllocated,optional" validate:"omitempty"`                      // ConfigMap配额
 	SecretAllocated                         int64  `json:"secretAllocated,optional" validate:"omitempty"`                         // Secret配额
 	PvcAllocated                            int64  `json:"pvcAllocated,optional" validate:"omitempty"`                            // PVC配额
@@ -389,6 +389,21 @@ type Cluster struct {
 	PodUsage     string `json:"podUsage"`
 	StorageUsage string `json:"storageUsage"`
 	CreatedAt    int64  `json:"createdAt"`
+}
+
+type ClusterMember struct {
+	UserId   uint64 `json:"userId"`   // 用户ID
+	Username string `json:"username"` // 用户名
+	Nickname string `json:"nickname"` // 昵称
+}
+
+type GetClusterMembersRequest struct {
+	ClusterUuid string `path:"clusterUuid" validate:"required"` // 集群UUID
+}
+
+type SetClusterMembersRequest struct {
+	ClusterUuid string   `path:"clusterUuid" validate:"required"` // 集群UUID
+	UserIds     []uint64 `json:"userIds,optional"`                // 分配用户ID列表（覆盖式）
 }
 
 type ClusterAppDetail struct {
@@ -1835,14 +1850,14 @@ type UpdateProjectRequest struct {
 }
 
 type UpdateProjectWorkspaceRequest struct {
-	Id                                      uint64 `path:"id" validate:"required,gt=0"`                                  // 主键ID
-	Name                                    string `json:"name" validate:"required,min=1,max=100"`                       // 工作空间名称
+	Id                                      uint64 `path:"id" validate:"required,gt=0"`                                           // 主键ID
+	Name                                    string `json:"name" validate:"required,min=1,max=100"`                                // 工作空间名称
 	Description                             string `json:"description,optional" validate:"omitempty,max=500"`                     // 工作空间描述
-	CpuAllocated                            string `json:"cpuAllocated" validate:"required,gt=0"`                        // CPU核心数
-	MemAllocated                            string `json:"memAllocated" validate:"required,gt=0"`                        // 内存（GiB）
+	CpuAllocated                            string `json:"cpuAllocated" validate:"required,gt=0"`                                 // CPU核心数
+	MemAllocated                            string `json:"memAllocated" validate:"required,gt=0"`                                 // 内存（GiB）
 	StorageAllocated                        string `json:"storageAllocated,optional" validate:"omitempty"`                        // 存储（GiB）
 	GpuAllocated                            string `json:"gpuAllocated,optional" validate:"omitempty"`                            // GPU数量
-	PodsAllocated                           int64  `json:"podsAllocated" validate:"required,gt=0"`                       // Pod配额
+	PodsAllocated                           int64  `json:"podsAllocated" validate:"required,gt=0"`                                // Pod配额
 	ConfigmapAllocated                      int64  `json:"configmapAllocated,optional" validate:"omitempty"`                      // ConfigMap配额
 	SecretAllocated                         int64  `json:"secretAllocated,optional" validate:"omitempty"`                         // Secret配额
 	PvcAllocated                            int64  `json:"pvcAllocated,optional" validate:"omitempty"`                            // PVC配额

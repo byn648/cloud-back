@@ -31,6 +31,16 @@ func (l *UpdateClusterStorageCapacityLogic) UpdateClusterStorageCapacity(in *pb.
 		l.Errorf("查询集群资源失败，集群ID: %s, 错误: %v", in.Id, err)
 		return nil, errorx.Msg("查询集群资源失败")
 	}
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	canAccess, err := canAccessClusterByUUID(l.ctx, l.svcCtx, clusterResource.ClusterUuid, username, roles, userID)
+	if err != nil {
+		l.Errorf("校验集群资源修改权限失败 [clusterUuid=%s]: %v", clusterResource.ClusterUuid, err)
+		return nil, errorx.Msg("校验集群资源修改权限失败")
+	}
+	if !canAccess {
+		return nil, errorx.Msg("无权限修改该集群资源")
+	}
+
 	clusterResource.StoragePhysicalCapacity = in.StoragePhysicalCapacity
 
 	// 更新数据

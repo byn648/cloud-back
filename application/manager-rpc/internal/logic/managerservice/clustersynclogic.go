@@ -42,12 +42,12 @@ func (l *ClusterSyncLogic) ClusterSync(in *pb.SyncClusterReq) (*pb.SyncClusterRe
 	svcCtx := l.svcCtx
 
 	go func() {
-		ctx := context.Background()
-		logger := logx.WithContext(ctx)
+		syncCtx := buildClusterSyncContext(l.ctx, updatedBy)
+		logger := logx.WithContext(syncCtx)
 
 		logger.Infof("开始异步同步集群 [uuid=%s]", clusterUuid)
 
-		err := svcCtx.SyncOperator.SyncOneCLuster(ctx, clusterUuid, updatedBy, true)
+		err := svcCtx.SyncOperator.SyncOneCLuster(syncCtx, clusterUuid, updatedBy, true)
 		if err != nil {
 			logger.Errorf("同步集群失败 [uuid=%s]: %v", clusterUuid, err)
 			return

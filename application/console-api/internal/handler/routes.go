@@ -85,6 +85,12 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Handler: clustermonitor.GetClusterOverviewHandler(serverCtx),
 				},
 				{
+					// 获取当前账号可见集群能耗概览
+					Method:  http.MethodGet,
+					Path:    "/energy/scope-overview",
+					Handler: clustermonitor.GetScopedClusterEnergyOverviewHandler(serverCtx),
+				},
+				{
 					// 获取集群资源指标
 					Method:  http.MethodGet,
 					Path:    "/resources",
@@ -593,6 +599,12 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Method:  http.MethodGet,
 					Path:    "/ranking",
 					Handler: nodemonitor.GetNodeRankingHandler(serverCtx),
+				},
+				{
+					// 获取微服务算电异常
+					Method:  http.MethodGet,
+					Path:    "/microservice-anomaly",
+					Handler: nodemonitor.GetNodeMicroserviceAnomalyHandler(serverCtx),
 				},
 				{
 					// 获取节点系统指标

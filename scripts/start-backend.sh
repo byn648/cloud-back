@@ -7,8 +7,11 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUN_DIR="${ROOT_DIR}/.local/backend"
 LOG_DIR="${RUN_DIR}/logs"
 PID_DIR="${RUN_DIR}/pids"
+BIN_DIR="${RUN_DIR}/bin"
+SKIP_BUILD="${SKIP_BUILD:-0}"
+FORCE_BUILD="${FORCE_BUILD:-0}"
 
-mkdir -p "${LOG_DIR}" "${PID_DIR}"
+mkdir -p "${LOG_DIR}" "${PID_DIR}" "${BIN_DIR}"
 
 SERVICES=(
   "portal-rpc|application/portal-rpc/portal.go|application/portal-rpc/etc/portal.yaml"
@@ -24,11 +27,11 @@ service_port() {
   case "$1" in
     portal-rpc) echo "30010" ;;
     manager-rpc) echo "30011" ;;
-    console-rpc) echo "30012" ;;
+    console-rpc) echo "30018" ;;
     portal-api) echo "8810" ;;
     manager-api) echo "8811" ;;
     workload-api) echo "8812" ;;
-    console-api) echo "8813" ;;
+    console-api) echo "8818" ;;
     *) echo "" ;;
   esac
 }
@@ -36,9 +39,12 @@ service_port() {
 usage() {
   cat <<'EOF'
 用法:
-  ./scripts/start-backend.sh             # 启动全部后端服务
-  ./scripts/start-backend.sh all         # 启动全部后端服务
-  ./scripts/start-backend.sh manager-api # 只启动指定服务(可多个)
+  ./scripts/start-backend.sh                               # 启动全部后端服务
+  ./scripts/start-backend.sh all                           # 启动全部后端服务
+  ./scripts/start-backend.sh manager-api                   # 只启动指定服务(可多个)
+  ./scripts/start-backend.sh --skip-build manager-api      # 快速启动(复用已有二进制)
+  SKIP_BUILD=1 ./scripts/start-backend.sh manager-api      # 同上(环境变量方式)
+  ./scripts/start-backend.sh --force-build manager-api     # 强制重新编译
 
 可选服务:
   portal-rpc manager-rpc console-rpc portal-api manager-api workload-api console-api
@@ -67,6 +73,35 @@ listening_pid_by_port() {
   lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null || true
 }
 
+should_build_binary() {
+  local bin_file="$1"
+  local main_file="$2"
+
+  if [[ "${FORCE_BUILD}" == "1" ]]; then
+    return 0
+  fi
+  if [[ "${SKIP_BUILD}" == "1" ]]; then
+    return 1
+  fi
+  if [[ ! -x "${bin_file}" ]]; then
+    return 0
+  fi
+  if [[ "${main_file}" -nt "${bin_file}" ]]; then
+    return 0
+  fi
+  if [[ "${ROOT_DIR}/go.mod" -nt "${bin_file}" || "${ROOT_DIR}/go.sum" -nt "${bin_file}" ]]; then
+    return 0
+  fi
+
+  local newer_go_file
+  newer_go_file="$(find "${ROOT_DIR}/application" "${ROOT_DIR}/pkg" "${ROOT_DIR}/common" -type f -name '*.go' -newer "${bin_file}" -print -quit 2>/dev/null || true)"
+  if [[ -n "${newer_go_file}" ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
 start_service() {
   local name="$1"
   local main_rel="$2"
@@ -74,31 +109,24 @@ start_service() {
 
   local pid_file="${PID_DIR}/${name}.pid"
   local log_file="${LOG_DIR}/${name}.log"
-  local main_file="${ROOT_DIR}/${main_rel}"
-  local cfg_file="${ROOT_DIR}/${cfg_rel}"
-  local local_cfg_file="${cfg_file%.yaml}.local.yaml"
+  local bin_file="${BIN_DIR}/${name}"
+  local main_file_abs="${ROOT_DIR}/${main_rel}"
+  local cfg_file_abs="${ROOT_DIR}/${cfg_rel}"
+  local local_cfg_file_abs="${cfg_file_abs%.yaml}.local.yaml"
+  local run_main="${main_rel}"
+  local run_cfg="${cfg_rel}"
 
-  if [[ ! -f "${main_file}" ]]; then
-    echo "[ERROR] ${name}: 未找到入口文件 ${main_file}"
+  if [[ ! -f "${main_file_abs}" ]]; then
+    echo "[ERROR] ${name}: 未找到入口文件 ${main_file_abs}"
     return 1
   fi
-  if [[ ! -f "${cfg_file}" ]]; then
-    echo "[ERROR] ${name}: 未找到配置文件 ${cfg_file}"
+  if [[ ! -f "${cfg_file_abs}" ]]; then
+    echo "[ERROR] ${name}: 未找到配置文件 ${cfg_file_abs}"
     return 1
   fi
 
-  if [[ -f "${local_cfg_file}" ]]; then
-    cfg_file="${local_cfg_file}"
-  fi
-
-  local target_port occupied_pid
-  target_port="$(service_port "${name}")"
-  if [[ -n "${target_port}" ]]; then
-    occupied_pid="$(listening_pid_by_port "${target_port}")"
-    if [[ -n "${occupied_pid}" ]]; then
-      echo "[ERROR] ${name}: 端口 ${target_port} 已被占用 (pid=${occupied_pid})，请先执行 ./scripts/stop-backend.sh ${name}"
-      return 1
-    fi
+  if [[ -f "${local_cfg_file_abs}" ]]; then
+    run_cfg="${cfg_rel%.yaml}.local.yaml"
   fi
 
   if [[ -f "${pid_file}" ]]; then
@@ -111,10 +139,35 @@ start_service() {
     rm -f "${pid_file}"
   fi
 
-  echo "[START] ${name} (config=$(basename "${cfg_file}"))"
+  local target_port occupied_pid
+  target_port="$(service_port "${name}")"
+  if [[ -n "${target_port}" ]]; then
+    occupied_pid="$(listening_pid_by_port "${target_port}")"
+    if [[ -n "${occupied_pid}" ]]; then
+      echo "[ERROR] ${name}: 端口 ${target_port} 已被占用 (pid=${occupied_pid})，请先执行 ./scripts/stop-backend.sh ${name}"
+      return 1
+    fi
+  fi
+
+  if [[ "${SKIP_BUILD}" == "1" && ! -x "${bin_file}" ]]; then
+    echo "[ERROR] ${name}: --skip-build 模式下未找到可执行文件 ${bin_file}，请先去掉 --skip-build 编译一次"
+    return 1
+  fi
+
+  if should_build_binary "${bin_file}" "${main_file_abs}"; then
+    echo "[BUILD] ${name}"
+    (
+      cd "${ROOT_DIR}"
+      go build -o "${bin_file}" "${run_main}"
+    )
+  else
+    echo "[SKIP ] ${name}: 复用已构建二进制"
+  fi
+
+  echo "[START] ${name} (config=$(basename "${run_cfg}"))"
   (
     cd "${ROOT_DIR}"
-    nohup go run "${main_file}" -f "${cfg_file}" >"${log_file}" 2>&1 &
+    nohup "${bin_file}" -f "${run_cfg}" >"${log_file}" 2>&1 < /dev/null &
     echo $! >"${pid_file}"
   )
 
@@ -132,18 +185,35 @@ start_service() {
 }
 
 declare -a targets=()
+
 if [[ $# -eq 0 ]]; then
   targets=("all")
 else
-  targets=("$@")
+  for arg in "$@"; do
+    case "${arg}" in
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --skip-build)
+        SKIP_BUILD=1
+        ;;
+      --force-build)
+        FORCE_BUILD=1
+        ;;
+      *)
+        targets+=("${arg}")
+        ;;
+    esac
+  done
 fi
 
-if [[ "${targets[0]}" == "-h" || "${targets[0]}" == "--help" ]]; then
-  usage
-  exit 0
+if [[ "${SKIP_BUILD}" == "1" && "${FORCE_BUILD}" == "1" ]]; then
+  echo "[ERROR] --skip-build 与 --force-build 不能同时使用"
+  exit 1
 fi
 
-if [[ "${targets[0]}" == "all" ]]; then
+if [[ ${#targets[@]} -eq 0 || "${targets[0]}" == "all" ]]; then
   targets=()
   local_item=""
   for local_item in "${SERVICES[@]}"; do

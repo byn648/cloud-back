@@ -47,13 +47,13 @@ func (l *ClusterResourceSyncLogic) ClusterResourceSync(in *pb.ClusterResourceSyn
 	svcCtx := l.svcCtx
 
 	go func() {
-		ctx := context.Background()
-		logger := logx.WithContext(ctx)
+		syncCtx := buildClusterSyncContext(l.ctx, operator)
+		logger := logx.WithContext(syncCtx)
 
 		logger.Infof("开始异步同步集群 [%s] 的资源信息", clusterName)
 
 		// 查询该集群下的所有项目集群
-		projectClusters, err := svcCtx.OnecProjectClusterModel.SearchNoPage(ctx, "created_at", false, "cluster_uuid = ?", clusterUuid)
+		projectClusters, err := svcCtx.OnecProjectClusterModel.SearchNoPage(syncCtx, "created_at", false, "cluster_uuid = ?", clusterUuid)
 		if err != nil {
 			logger.Errorf("查询集群 [%s] 下的项目集群失败: %v", clusterName, err)
 			return
@@ -62,7 +62,7 @@ func (l *ClusterResourceSyncLogic) ClusterResourceSync(in *pb.ClusterResourceSyn
 		var syncCount int
 		// 同步每个项目集群的工作空间资源分配
 		for _, projectCluster := range projectClusters {
-			if err := svcCtx.OnecProjectModel.SyncAllProjectClusters(ctx, projectCluster.Id); err != nil {
+			if err := svcCtx.OnecProjectModel.SyncAllProjectClusters(syncCtx, projectCluster.Id); err != nil {
 				logger.Errorf("同步项目集群 [ID:%d] 的工作空间资源分配失败: %v", projectCluster.Id, err)
 				continue
 			}
@@ -73,7 +73,7 @@ func (l *ClusterResourceSyncLogic) ClusterResourceSync(in *pb.ClusterResourceSyn
 		logger.Infof("集群 [%s] 项目集群同步完成，共同步 %d 个", clusterName, syncCount)
 
 		// 同步集群资源统计
-		if err := svcCtx.SyncOperator.SyncOneClusterAllResource(ctx, clusterUuid, operator, true); err != nil {
+		if err := svcCtx.SyncOperator.SyncOneClusterAllResource(syncCtx, clusterUuid, operator, true); err != nil {
 			logger.Errorf("同步集群 [%s] 的资源统计数据失败: %v", clusterName, err)
 			return
 		}

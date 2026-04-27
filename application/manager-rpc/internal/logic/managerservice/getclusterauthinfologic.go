@@ -33,6 +33,15 @@ func (l *GetClusterAuthInfoLogic) GetClusterAuthInfo(in *pb.GetClusterAuthInfoRe
 	if in.ClusterUuid == "__health_check__" {
 		return nil, errorx.Msg("集群认证信息不存在")
 	}
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	canAccess, err := canAccessClusterByUUID(l.ctx, l.svcCtx, in.ClusterUuid, username, roles, userID)
+	if err != nil {
+		l.Errorf("校验集群认证查看权限失败 [clusterUuid=%s]: %v", in.ClusterUuid, err)
+		return nil, errorx.Msg("校验集群认证查看权限失败")
+	}
+	if !canAccess {
+		return nil, errorx.Msg("无权限查看该集群认证信息")
+	}
 
 	//获取认证信息
 	authInfo, err := l.svcCtx.OnecClusterAuthModel.FindOneByClusterUuid(l.ctx, in.ClusterUuid)
