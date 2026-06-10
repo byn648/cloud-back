@@ -62,7 +62,12 @@ func (l *ProjectWorkspaceAddLogic) ProjectWorkspaceAdd(in *pb.AddOnecProjectWork
 		return nil, errorx.Msg(err.Error())
 	}
 
-	// 添加项目工作空间
+	if err := isValidNamespaceName(in.Namespace); err != nil {
+		l.Errorf("命名空间名称格式无效: %s", in.Namespace)
+		return nil, fmt.Errorf("命名空间名称格式无效，必须符合DNS-1123标签规范：小写字母、数字、连字符，以字母或数字开头和结尾，最长63个字符")
+	}
+
+	// 构造项目工作空间记录，等 K8s 资源创建成功后再入库。
 	workspace := model.OnecProjectWorkspace{
 		ProjectClusterId:          in.ProjectClusterId,
 		ClusterUuid:               projectCluster.ClusterUuid,
@@ -110,29 +115,12 @@ func (l *ProjectWorkspaceAddLogic) ProjectWorkspaceAdd(in *pb.AddOnecProjectWork
 		AppCreateTime:                           time.Now(),
 		Status:                                  1,
 	}
-	works, err := l.svcCtx.OnecProjectWorkspaceModel.Insert(l.ctx, &workspace)
-	if err != nil {
-		l.Errorf("添加项目工作空间失败: %v", err)
-		return nil, errorx.Msg("添加项目工作空间失败")
-	}
-	id, err := works.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("获取项目工作空间ID失败: %v", err)
-	}
-	// 同步项目资源 信息
-	err = l.svcCtx.OnecProjectModel.SyncAllProjectClusters(l.ctx, projectCluster.Id)
-	if err != nil {
-		l.Errorf("同步项目资源信息失败: %v", err)
-	}
+
 	// 创建namespace
 	client, err := l.svcCtx.K8sManager.GetCluster(l.ctx, projectCluster.ClusterUuid)
 	if err != nil {
 		l.Errorf("获取集群失败: %v", err)
 		return nil, errorx.Msg("获取集群失败")
-	}
-	if err := isValidNamespaceName(in.Namespace); err != nil {
-		l.Errorf("命名空间名称格式无效: %s", in.Namespace)
-		return nil, fmt.Errorf("命名空间名称格式无效，必须符合DNS-1123标签规范：小写字母、数字、连字符，以字母或数字开头和结尾，最长63个字符")
 	}
 	// 构建 Namespace 对象
 	namespace := &corev1.Namespace{
@@ -169,7 +157,7 @@ func (l *ProjectWorkspaceAddLogic) ProjectWorkspaceAdd(in *pb.AddOnecProjectWork
 		Namespace:                 in.Namespace,
 		Labels:                    make(map[string]string),
 		Annotations:               createdNs.Annotations,
-		Name:                      fmt.Sprintf("ikubeops-%s", in.Namespace),
+		Name:                      workspacePolicyName(in.Namespace),
 		CPUAllocated:              in.CpuAllocated,
 		MemoryAllocated:           in.MemAllocated,
 		StorageAllocated:          in.StorageAllocated,
@@ -200,6 +188,7 @@ func (l *ProjectWorkspaceAddLogic) ProjectWorkspaceAdd(in *pb.AddOnecProjectWork
 	if err != nil {
 		l.Errorf("创建或更新ResourceQuota失败: name=%s, namespace=%s, error=%v",
 			in.Name, in.Namespace, err)
+		_ = client.Namespaces().Delete(in.Namespace)
 		return nil, fmt.Errorf("创建或更新ResourceQuota失败: %v", err)
 	}
 	// 创建 limitRange
@@ -207,7 +196,7 @@ func (l *ProjectWorkspaceAddLogic) ProjectWorkspaceAdd(in *pb.AddOnecProjectWork
 		Namespace:   in.Namespace,
 		Labels:      make(map[string]string),
 		Annotations: createdNs.Annotations,
-		Name:        fmt.Sprintf("ikubeops-%s", in.Namespace),
+		Name:        workspacePolicyName(in.Namespace),
 		// Pod级别限制
 		PodMaxCPU:              in.PodMaxCpu, // 核心数
 		PodMaxMemory:           in.PodMaxMemory,
@@ -236,8 +225,22 @@ func (l *ProjectWorkspaceAddLogic) ProjectWorkspaceAdd(in *pb.AddOnecProjectWork
 	if err != nil {
 		l.Errorf("创建或更新LimitRange失败: name=%s, namespace=%s, error=%v",
 			in.Name, in.Namespace, err)
+		_ = client.Namespaces().Delete(in.Namespace)
 		return nil, fmt.Errorf("创建或更新LimitRange失败: %v", err)
 	}
+
+	works, err := l.svcCtx.OnecProjectWorkspaceModel.Insert(l.ctx, &workspace)
+	if err != nil {
+		l.Errorf("添加项目工作空间失败: %v", err)
+		_ = client.Namespaces().Delete(in.Namespace)
+		return nil, errorx.Msg("添加项目工作空间失败")
+	}
+	id, err := works.LastInsertId()
+	if err != nil {
+		_ = client.Namespaces().Delete(in.Namespace)
+		return nil, fmt.Errorf("获取项目工作空间ID失败: %v", err)
+	}
+
 	// 调用 OnecProjectModel 的同步方法
 	err = l.svcCtx.OnecProjectModel.SyncProjectClusterResourceAllocation(l.ctx, projectCluster.Id)
 	if err != nil {
@@ -309,7 +312,7 @@ func (l *ProjectWorkspaceAddLogic) checkResourceAvailable(projectCluster *model.
 	}
 	newStorageTotalAllocated := oldStorageAllocated + storage
 	if newStorageTotalAllocated > oldStorageLimit {
-		l.Errorf("存储资源不足，限制: %v，申请后总分配: %d GiB", projectCluster.StorageLimit, newStorageTotalAllocated)
+		l.Errorf("存储资源不足，限制: %v，申请后总分配: %.2f GiB", projectCluster.StorageLimit, newStorageTotalAllocated)
 		return fmt.Errorf("存储资源不足，限制: %v，申请后总分配: %f GiB", projectCluster.StorageLimit, newStorageTotalAllocated)
 	}
 
@@ -375,8 +378,8 @@ func (l *ProjectWorkspaceAddLogic) checkResourceAvailable(projectCluster *model.
 	}
 	newEphemeralStorageTotalAllocated := oldEphStorageAllocated + ephStorage
 	if newEphemeralStorageTotalAllocated > oldEphStorageLimit {
-		l.Errorf("临时存储配额不足，限制: %v，申请后总分配: %d GiB", projectCluster.EphemeralStorageLimit, newEphemeralStorageTotalAllocated)
-		return fmt.Errorf("临时存储配额不足，限制: %v，申请后总分配: %d GiB", projectCluster.EphemeralStorageLimit, newEphemeralStorageTotalAllocated)
+		l.Errorf("临时存储配额不足，限制: %v，申请后总分配: %.2f GiB", projectCluster.EphemeralStorageLimit, newEphemeralStorageTotalAllocated)
+		return fmt.Errorf("临时存储配额不足，限制: %v，申请后总分配: %.2f GiB", projectCluster.EphemeralStorageLimit, newEphemeralStorageTotalAllocated)
 	}
 
 	// Service检查 - 使用 service_limit

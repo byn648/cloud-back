@@ -130,6 +130,10 @@ type (
         Status string `json:"status"`                                                 //
         CreatedAt int64 `json:"createdAt"`                                            // 记录创建时间
         UpdatedAt int64 `json:"updatedAt"`                                            // 记录更新时间
+        HasEnergyProfile bool `json:"hasEnergyProfile"`        // 是否存在 onec_cluster_energy_profile 行
+        GridPricePerKwh  float64 `json:"gridPricePerKwh"`  // 综合电价 元/kWh
+        HasStorageSoc  bool   `json:"hasStorageSoc"`  // 储能 SOC 有值
+        StorageSoc  float64 `json:"storageSoc"`         // 储能 0-100
     }
 
         // 添加项目集群配额请求

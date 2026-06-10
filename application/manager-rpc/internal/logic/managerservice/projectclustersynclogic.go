@@ -93,11 +93,11 @@ func (l *ProjectClusterSyncLogic) calculateWorkspaceAllocatedStats(workspaces []
 		if err != nil {
 			return nil, fmt.Errorf("数值转换错误: %v", err.Error())
 		}
-		mem, err := utils.MemoryToGiB(ws.MemAllocated)
+		mem, err := utils.PlatformMemoryStringToGiB(ws.MemAllocated)
 		if err != nil {
 			return nil, fmt.Errorf("数值转换错误: %v", err.Error())
 		}
-		storage, err := utils.MemoryToGiB(ws.StorageAllocated)
+		storage, err := utils.PlatformMemoryStringToGiB(ws.StorageAllocated)
 		if err != nil {
 			return nil, fmt.Errorf("数值转换错误: %v", err.Error())
 		}
@@ -105,7 +105,7 @@ func (l *ProjectClusterSyncLogic) calculateWorkspaceAllocatedStats(workspaces []
 		if err != nil {
 			return nil, fmt.Errorf("数值转换错误: %v", err.Error())
 		}
-		ephStorage, err := utils.MemoryToGiB(ws.EphemeralStorageAllocated)
+		ephStorage, err := utils.PlatformMemoryStringToGiB(ws.EphemeralStorageAllocated)
 		if err != nil {
 			return nil, fmt.Errorf("数值转换错误: %v", err.Error())
 		}
@@ -199,15 +199,15 @@ func (l *ProjectClusterSyncLogic) calculateClusterResourceStats(projectClusters 
 		if err != nil {
 			return nil, fmt.Errorf("CPU转换失败: %v", err)
 		}
-		memTotal, err := utils.MemoryToGiB(pc.MemAllocated)
+		memTotal, err := utils.PlatformMemoryStringToGiB(pc.MemAllocated)
 		if err != nil {
 			return nil, fmt.Errorf("内存转换失败: %v", err)
 		}
-		memCapacity, err := utils.MemoryToGiB(pc.MemCapacity)
+		memCapacity, err := utils.PlatformMemoryStringToGiB(pc.MemCapacity)
 		if err != nil {
 			return nil, fmt.Errorf("内存转换失败: %v", err)
 		}
-		storageTotal, err := utils.MemoryToGiB(pc.StorageAllocated)
+		storageTotal, err := utils.PlatformMemoryStringToGiB(pc.StorageAllocated)
 		if err != nil {
 			return nil, fmt.Errorf("存储转换失败: %v", err)
 		}

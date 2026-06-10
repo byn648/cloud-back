@@ -2,6 +2,9 @@ package utils
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
+	"unicode"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -25,6 +28,38 @@ func MemoryToGiB(memoryStr string) (float64, error) {
 	gib := float64(bytes) / 1073741824.0
 
 	return gib, nil
+}
+
+// gibiBytes 即 1 GiB 的字节数
+const gibiBytes = 1024.0 * 1024.0 * 1024.0
+
+// PlatformMemoryStringToGiB 将**平台库表/表单**中的 mem/storage 等字段转为 GiB，用于汇总、校验。
+// Kubernetes 的 resource.ParseQuantity 对无后缀的裸数（如 "6"）按**字节**解析，而本平台多处用 "6" 表示 6 GiB
+// 配额，与云前端 parseK8sMemoryStringToGib 对齐：有字母后缀走 K8s 语义；纯数字且 >1_000_000 视为字节，否则视为 GiB。
+func PlatformMemoryStringToGiB(s string) (float64, error) {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "0" {
+		return 0, nil
+	}
+	for _, r := range s {
+		if unicode.IsLetter(r) {
+			return MemoryToGiB(s)
+		}
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("platform memory to gib: %w", err)
+	}
+	if f < 0 {
+		return 0, nil
+	}
+	if f == 0 {
+		return 0, nil
+	}
+	if f > 1_000_000 {
+		return f / gibiBytes, nil
+	}
+	return f, nil
 }
 
 // 2. 将内存字符串转换为字节

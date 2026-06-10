@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -684,6 +685,18 @@ func (n *namespaceOperator) GetStatistics(name string) (*types.NamespaceStatisti
 	return stats, nil
 }
 
+// 与 ResourceQuotaRequest 中 MemoryAllocated / Storage 等字段约定一致：业务侧常传「GiB 数值」如 "1"、"8"，不含单位。
+// resource.ParseQuantity("1") 对 memory 会落在极小量纲，describe 中易显示为 Hard=1。纯十进制数则补全为 "1Gi" 等再解析。
+var bareDecimalQuantity = regexp.MustCompile(`^(?:0|[1-9]\d*)(?:\.\d+)?$`)
+
+func normalizeK8sQuantityStringForGiBStyle(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" || !bareDecimalQuantity.MatchString(s) {
+		return s
+	}
+	return s + "Gi"
+}
+
 // CreateOrUpdateResourceQuota 创建或更新资源配额
 func (n *namespaceOperator) CreateOrUpdateResourceQuota(req *types.ResourceQuotaRequest) error {
 	if req == nil {
@@ -722,7 +735,8 @@ func (n *namespaceOperator) CreateOrUpdateResourceQuota(req *types.ResourceQuota
 	}
 
 	if req.MemoryAllocated != "" && req.MemoryAllocated != "0" {
-		memQuantity, err := resource.ParseQuantity(req.MemoryAllocated)
+		memIn := normalizeK8sQuantityStringForGiBStyle(req.MemoryAllocated)
+		memQuantity, err := resource.ParseQuantity(memIn)
 		if err != nil {
 			n.log.Errorf("解析内存配额失败: %s, error=%v", req.MemoryAllocated, err)
 			return fmt.Errorf("解析内存配额失败: %v", err)
@@ -733,7 +747,8 @@ func (n *namespaceOperator) CreateOrUpdateResourceQuota(req *types.ResourceQuota
 	}
 
 	if req.StorageAllocated != "" && req.StorageAllocated != "0" {
-		storageQuantity, err := resource.ParseQuantity(req.StorageAllocated)
+		storageIn := normalizeK8sQuantityStringForGiBStyle(req.StorageAllocated)
+		storageQuantity, err := resource.ParseQuantity(storageIn)
 		if err != nil {
 			n.log.Errorf("解析存储配额失败: %s, error=%v", req.StorageAllocated, err)
 			return fmt.Errorf("解析存储配额失败: %v", err)
@@ -743,7 +758,8 @@ func (n *namespaceOperator) CreateOrUpdateResourceQuota(req *types.ResourceQuota
 	}
 
 	if req.EphemeralStorageAllocated != "" && req.EphemeralStorageAllocated != "0" {
-		ephemeralQuantity, err := resource.ParseQuantity(req.EphemeralStorageAllocated)
+		ephemeralIn := normalizeK8sQuantityStringForGiBStyle(req.EphemeralStorageAllocated)
+		ephemeralQuantity, err := resource.ParseQuantity(ephemeralIn)
 		if err != nil {
 			n.log.Errorf("解析临时存储配额失败: %s, error=%v", req.EphemeralStorageAllocated, err)
 			return fmt.Errorf("解析临时存储配额失败: %v", err)

@@ -93,6 +93,10 @@ func (l *GetProjectClusterLogic) GetProjectCluster(req *types.DefaultIdRequest) 
 		UpdatedBy:                 rpcResp.Data.UpdatedBy,
 		CreatedAt:                 rpcResp.Data.CreatedAt,
 		UpdatedAt:                 rpcResp.Data.UpdatedAt,
+		HasEnergyProfile:         rpcResp.Data.HasEnergyProfile,
+		GridPricePerKwh:         rpcResp.Data.GridPricePerKwh,
+		HasStorageSoc:            rpcResp.Data.HasStorageSoc,
+		StorageSoc:               rpcResp.Data.StorageSoc,
 	}
 
 	return cluster, nil

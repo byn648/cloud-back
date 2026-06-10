@@ -39,7 +39,11 @@ func (l *ProjectClusterGetByIdLogic) ProjectClusterGetById(in *pb.GetOnecProject
 		clusterName = cluster.Name
 	}
 
-	return &pb.GetOnecProjectClusterByIdResp{
-		Data: convertProjectClusterToProto(projectCluster, clusterName),
-	}, nil
+	row := convertProjectClusterToProto(projectCluster, clusterName)
+	if m, e := loadClusterEnergyMapByUuids(l.ctx, l.svcCtx.Mysql, []string{projectCluster.ClusterUuid}); e != nil {
+		l.Errorf("查询集群能源画像失败: %v", e)
+	} else if d, ok := m[projectCluster.ClusterUuid]; ok {
+		mergeProjectClusterEnergy(row, d)
+	}
+	return &pb.GetOnecProjectClusterByIdResp{Data: row}, nil
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/yanshicheng/kube-nova/application/manager-rpc/client/managerservice"
+	"github.com/yanshicheng/kube-nova/application/manager-rpc/pb"
 	"github.com/yanshicheng/kube-nova/application/workload-api/internal/svc"
 	"github.com/yanshicheng/kube-nova/application/workload-api/internal/types"
 	k8sTypes "github.com/yanshicheng/kube-nova/common/k8smanager/types"
@@ -111,7 +112,7 @@ func (l *GetApplicationSummaryLogic) GetApplicationSummary(req *types.GetApplica
 	resultChan := make(chan versionResult, len(versions.Data))
 
 	for i, version := range versions.Data {
-		go func(index int, ver *managerservice.OnecProjectVersion) {
+		go func(index int, ver *pb.OnecProjectVersion) {
 			var summary *k8sTypes.WorkloadResourceSummary
 			var err error
 

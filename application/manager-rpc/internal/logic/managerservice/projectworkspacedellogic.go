@@ -86,7 +86,16 @@ func (l *ProjectWorkspaceDelLogic) ProjectWorkspaceDel(in *pb.DelOnecProjectWork
 		l.Infof("已标记 Namespace 为 API 删除: %s", workspace.Namespace)
 	}
 
-	// Step 7: 执行数据库级联硬删除：Version -> Application -> Workspace
+	// Step 7: 删除 K8s Namespace。只有 K8s 接受删除请求后，才删除数据库记录。
+	err = clusterClient.Namespaces().Delete(workspace.Namespace)
+	if err != nil {
+		l.Errorf("删除 namespace 失败，命名空间: %s, 错误: %v", workspace.Namespace, err)
+		l.recordWorkspaceAuditLog(workspace, project, projectCluster, false)
+		return nil, errorx.Msg("删除 namespace 失败")
+	}
+	l.Infof("删除 namespace 成功，命名空间: %s", workspace.Namespace)
+
+	// Step 8: 执行数据库级联硬删除：Version -> Application -> Workspace
 	if err := l.cascadeDeleteWorkspace(workspace); err != nil {
 		l.Errorf("级联删除工作空间失败，ID: %d, 错误: %v", in.Id, err)
 		// 记录失败的审计日志
@@ -94,14 +103,6 @@ func (l *ProjectWorkspaceDelLogic) ProjectWorkspaceDel(in *pb.DelOnecProjectWork
 		return nil, errorx.Msg(fmt.Sprintf("级联删除工作空间失败: %v", err))
 	}
 	l.Infof("级联删除工作空间成功，ID: %d, 命名空间: %s", in.Id, workspace.Namespace)
-
-	// Step 8: 删除 K8s Namespace
-	err = clusterClient.Namespaces().Delete(workspace.Namespace)
-	if err != nil {
-		l.Errorf("删除 namespace 失败，命名空间: %s, 错误: %v", workspace.Namespace, err)
-		return nil, errorx.Msg("删除 namespace 失败")
-	}
-	l.Infof("删除 namespace 成功，命名空间: %s", workspace.Namespace)
 
 	// Step 9: 同步项目集群资源分配
 	if projectClusterId > 0 {

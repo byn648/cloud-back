@@ -79,7 +79,7 @@ func (l *ProjectWorkspaceUpdateLogic) ProjectWorkspaceUpdate(in *pb.UpdateOnecPr
 		Namespace:                 workspace.Namespace,
 		Labels:                    make(map[string]string),
 		Annotations:               ns.Annotations,
-		Name:                      fmt.Sprintf("ikubeops-%s", workspace.Namespace),
+		Name:                      workspacePolicyName(workspace.Namespace),
 		CPUAllocated:              in.CpuAllocated,
 		MemoryAllocated:           in.MemAllocated,
 		StorageAllocated:          in.StorageAllocated,
@@ -106,7 +106,7 @@ func (l *ProjectWorkspaceUpdateLogic) ProjectWorkspaceUpdate(in *pb.UpdateOnecPr
 		Namespace:   workspace.Namespace,
 		Labels:      make(map[string]string),
 		Annotations: ns.Annotations,
-		Name:        fmt.Sprintf("ikubeops-%s", workspace.Namespace),
+		Name:        workspacePolicyName(workspace.Namespace),
 		// Pod级别限制
 		PodMaxCPU:              in.PodMaxCpu, // 核心数
 		PodMaxMemory:           in.PodMaxMemory,
@@ -151,117 +151,10 @@ func (l *ProjectWorkspaceUpdateLogic) ProjectWorkspaceUpdate(in *pb.UpdateOnecPr
 			return errorx.Msg("创建 limitRange 失败")
 		}
 
-		// 1. 计算资源变化量
-		inCpu, err := utils.CPUToCores(in.CpuAllocated)
-		if err != nil {
-			return fmt.Errorf("CPU转换失败: %v", err)
-		}
-		wsCpu, err := utils.CPUToCores(workspace.CpuAllocated)
-		if err != nil {
-			return fmt.Errorf("CPU转换失败: %v", err)
-		}
-		inMem, err := utils.MemoryToBytes(in.MemAllocated)
-		if err != nil {
-			return fmt.Errorf("内存转换失败: %v", err)
-		}
-		wsMem, err := utils.MemoryToBytes(workspace.MemAllocated)
-		if err != nil {
-			return fmt.Errorf("内存转换失败: %v", err)
-		}
-		inGpu, err := utils.GPUToCount(in.GpuAllocated)
-		if err != nil {
-			return fmt.Errorf("GPU转换失败: %v", err)
-		}
-		wsGpu, err := utils.GPUToCount(workspace.GpuAllocated)
-		if err != nil {
-			return fmt.Errorf("GPU转换失败: %v", err)
-		}
-		inStorage, err := utils.MemoryToGiB(in.StorageAllocated)
-		if err != nil {
-			return fmt.Errorf("存储转换失败: %v", err)
-		}
-		wsStorage, err := utils.MemoryToGiB(workspace.StorageAllocated)
-		if err != nil {
-			return fmt.Errorf("存储转换失败: %v", err)
-		}
-		inEphStorage, err := utils.MemoryToGiB(in.EphemeralStorageAllocated)
-		if err != nil {
-			return fmt.Errorf("临时存储转换错误: %v", err)
-		}
-		wsEphStorage, err := utils.MemoryToGiB(workspace.EphemeralStorageAllocated)
-		if err != nil {
-			return fmt.Errorf("临时存储转换错误: %v", err)
-		}
-		cpuDelta := inCpu - wsCpu
-		memDelta := inMem - wsMem
-		storageDelta := inStorage - wsStorage
-		gpuDelta := inGpu - wsGpu
-		podsDelta := in.PodsAllocated - workspace.PodsAllocated
-		configmapDelta := in.ConfigmapAllocated - workspace.ConfigmapAllocated
-		secretDelta := in.SecretAllocated - workspace.SecretAllocated
-		pvcDelta := in.PvcAllocated - workspace.PvcAllocated
-		ephemeralStorageDelta := inEphStorage - wsEphStorage
-		serviceDelta := in.ServiceAllocated - workspace.ServiceAllocated
-		loadbalancersDelta := in.LoadbalancersAllocated - workspace.LoadbalancersAllocated
-		nodeportsDelta := in.NodeportsAllocated - workspace.NodeportsAllocated
-		deploymentsDelta := in.DeploymentsAllocated - workspace.DeploymentsAllocated
-		jobsDelta := in.JobsAllocated - workspace.JobsAllocated
-		cronjobsDelta := in.CronjobsAllocated - workspace.CronjobsAllocated
-		daemonsetsDelta := in.DaemonsetsAllocated - workspace.DaemonsetsAllocated
-		statefulsetsDelta := in.StatefulsetsAllocated - workspace.StatefulsetsAllocated
-		ingressesDelta := in.IngressesAllocated - workspace.IngressesAllocated
+		// 项目集群「已分配」不在这里用增量更新：历史上 mem 曾用「字节差」与 varchar( GiB 串)混加，会导致资源池展示为 0 或乱值。
+		// 工作空间行更新后，在事务外调用 SyncProjectClusterResourceAllocation 按子表重算并写回 onec_project_cluster。
 
-		// 2. 更新项目集群配额（调整已分配的资源）
-		updateProjectClusterSQL := `UPDATE onec_project_cluster SET 
-			cpu_allocated = cpu_allocated + ?,
-			mem_allocated = mem_allocated + ?,
-			storage_allocated = storage_allocated + ?,
-			gpu_allocated = gpu_allocated + ?,
-			pods_allocated = pods_allocated + ?,
-			configmap_allocated = configmap_allocated + ?,
-			secret_allocated = secret_allocated + ?,
-			pvc_allocated = pvc_allocated + ?,
-			ephemeral_storage_allocated = ephemeral_storage_allocated + ?,
-			service_allocated = service_allocated + ?,
-			loadbalancers_allocated = loadbalancers_allocated + ?,
-			nodeports_allocated = nodeports_allocated + ?,
-			deployments_allocated = deployments_allocated + ?,
-			jobs_allocated = jobs_allocated + ?,
-			cronjobs_allocated = cronjobs_allocated + ?,
-			daemonsets_allocated = daemonsets_allocated + ?,
-			statefulsets_allocated = statefulsets_allocated + ?,
-			ingresses_allocated = ingresses_allocated + ?,
-			updated_at = ?
-		WHERE id = ? AND is_deleted = 0`
-
-		_, err = l.svcCtx.OnecProjectClusterModel.TransOnSql(ctx, session, projectCluster.Id, updateProjectClusterSQL,
-			cpuDelta,
-			memDelta,
-			storageDelta,
-			gpuDelta,
-			podsDelta,
-			configmapDelta,
-			secretDelta,
-			pvcDelta,
-			ephemeralStorageDelta,
-			serviceDelta,
-			loadbalancersDelta,
-			nodeportsDelta,
-			deploymentsDelta,
-			jobsDelta,
-			cronjobsDelta,
-			daemonsetsDelta,
-			statefulsetsDelta,
-			ingressesDelta,
-			time.Now(),
-			projectCluster.Id,
-		)
-		if err != nil {
-			l.Logger.Errorf("更新项目集群配额失败: %v", err)
-			return fmt.Errorf("更新项目集群配额失败: %v", err)
-		}
-
-		// 3. 更新工作空间信息
+		// 1. 更新工作空间信息
 		updateWorkspaceSQL := `UPDATE onec_project_workspace SET 
 			name = ?, description = ?,
 			cpu_allocated = ?, mem_allocated = ?, storage_allocated = ?, gpu_allocated = ?, pods_allocated = ?,
@@ -305,6 +198,13 @@ func (l *ProjectWorkspaceUpdateLogic) ProjectWorkspaceUpdate(in *pb.UpdateOnecPr
 	if err != nil {
 		l.Logger.Errorf("事务执行失败: %v", err)
 		return nil, errorx.Msg("更新工作空间失败")
+	}
+
+	// 汇总该项目集群下所有工作空间的资源，写回 onec_project_cluster（与资源池「同步」一致）
+	if syncErr := l.svcCtx.OnecProjectModel.SyncProjectClusterResourceAllocation(l.ctx, projectCluster.Id); syncErr != nil {
+		l.Errorf("更新工作空间后同步项目集群配额失败 [projectClusterId=%d]: %v", projectCluster.Id, syncErr)
+	} else {
+		l.Infof("已按工作空间汇总同步项目集群配额 [projectClusterId=%d]", projectCluster.Id)
 	}
 
 	// ============ 事务成功后手动删除所有相关缓存 ============
@@ -403,8 +303,8 @@ func (l *ProjectWorkspaceUpdateLogic) checkResourceAvailable(projectCluster *mod
 	}
 	newStorageTotalAllocated := oldStorageAllocated - wsStorage + inStorage
 	if newStorageTotalAllocated > oldStorageLimit {
-		l.Logger.Errorf("存储资源不足，限制: %s，更新后总分配: %d GiB", projectCluster.StorageLimit, newStorageTotalAllocated)
-		return fmt.Errorf("存储资源不足，限制: %s，更新后总分配: %d GiB", projectCluster.StorageLimit, newStorageTotalAllocated)
+		l.Logger.Errorf("存储资源不足，限制: %s，更新后总分配: %.2f GiB", projectCluster.StorageLimit, newStorageTotalAllocated)
+		return fmt.Errorf("存储资源不足，限制: %s，更新后总分配: %.2f GiB", projectCluster.StorageLimit, newStorageTotalAllocated)
 	}
 
 	// GPU检查 - 使用 gpu_capacity（超分后容量）
@@ -477,8 +377,8 @@ func (l *ProjectWorkspaceUpdateLogic) checkResourceAvailable(projectCluster *mod
 	}
 	newEphemeralStorageTotalAllocated := oldEphemeralStorageAllocated - wsEphemeralStorage + inEphemeralStorage
 	if newEphemeralStorageTotalAllocated > oldEphemeralStorageLimit {
-		l.Logger.Errorf("临时存储配额不足，限制: %s，更新后总分配: %d GiB", projectCluster.EphemeralStorageLimit, newEphemeralStorageTotalAllocated)
-		return fmt.Errorf("临时存储配额不足，限制: %s，更新后总分配: %d GiB", projectCluster.EphemeralStorageLimit, newEphemeralStorageTotalAllocated)
+		l.Logger.Errorf("临时存储配额不足，限制: %s，更新后总分配: %.2f GiB", projectCluster.EphemeralStorageLimit, newEphemeralStorageTotalAllocated)
+		return fmt.Errorf("临时存储配额不足，限制: %s，更新后总分配: %.2f GiB", projectCluster.EphemeralStorageLimit, newEphemeralStorageTotalAllocated)
 	}
 
 	// Service检查 - 使用 service_limit
