@@ -32,3 +32,10 @@ local/*
 tmp
 .local/
 logs/
+.env
+model_service/checkpoints/*.pt
+model_service/checkpoints/*.pkl
+model_service/checkpoints/*.json
+__pycache__/
+*.pyc
+.local/

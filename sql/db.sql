@@ -1820,5 +1820,272 @@ UNLOCK TABLES;
 
 SET FOREIGN_KEY_CHECKS = 1;
 -- ============================================
+-- 绿色计算表（预测分析与性能管控）
+-- ============================================
+
+-- 节点硬件与异构资源静态信息表
+CREATE TABLE IF NOT EXISTS green_node_info (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  cluster_uuid VARCHAR(64) NOT NULL DEFAULT '',
+  node_uuid VARCHAR(64) NOT NULL,
+  cpu_model VARCHAR(128) NOT NULL DEFAULT 'unknown',
+  cpu_cores INT NOT NULL DEFAULT 0,
+  memory_gb DOUBLE NOT NULL DEFAULT 0,
+  gpu_model VARCHAR(128) NOT NULL DEFAULT 'unknown',
+  gpu_count INT NOT NULL DEFAULT 0,
+  gpu_mem_gb DOUBLE NOT NULL DEFAULT 0,
+  rated_power DOUBLE NOT NULL DEFAULT 0,
+  node_type VARCHAR(32) NOT NULL DEFAULT 'unknown',
+  requests DOUBLE NOT NULL DEFAULT 0,
+  limits DOUBLE NOT NULL DEFAULT 0,
+  os VARCHAR(128) NOT NULL DEFAULT '',
+  kernel VARCHAR(128) NOT NULL DEFAULT '',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_green_node_info_cluster_node (cluster_uuid, node_uuid)
+);
+
+-- 节点负载与能耗指标表
+CREATE TABLE IF NOT EXISTS green_node_metrics (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  node_uuid VARCHAR(64) NOT NULL,
+  cluster_uuid VARCHAR(64) NOT NULL,
+  metric_time DATETIME NOT NULL,
+  cpu_usage DOUBLE NOT NULL DEFAULT 0,
+  gpu_usage DOUBLE NOT NULL DEFAULT 0,
+  gpu_memory_usage DOUBLE NOT NULL DEFAULT 0,
+  memory_usage DOUBLE NOT NULL DEFAULT 0,
+  io_read DOUBLE NOT NULL DEFAULT 0,
+  io_write DOUBLE NOT NULL DEFAULT 0,
+  network_rx DOUBLE NOT NULL DEFAULT 0,
+  network_tx DOUBLE NOT NULL DEFAULT 0,
+  node_power DOUBLE NOT NULL DEFAULT 0,
+  ups_power DOUBLE NOT NULL DEFAULT 0,
+  service_energy DOUBLE NOT NULL DEFAULT 0,
+  task_type VARCHAR(32) NOT NULL DEFAULT 'ai_infer',
+  batch_size INT NOT NULL DEFAULT 0,
+  concurrency INT NOT NULL DEFAULT 0,
+  request_rate DOUBLE NOT NULL DEFAULT 0,
+  replica_count INT NOT NULL DEFAULT 0,
+  schedule_policy VARCHAR(32) NOT NULL DEFAULT 'binpack',
+  requests DOUBLE NOT NULL DEFAULT 0,
+  limits DOUBLE NOT NULL DEFAULT 0,
+  INDEX idx_node_time (node_uuid, metric_time),
+  INDEX idx_cluster_time (cluster_uuid, metric_time),
+  INDEX idx_task_type (task_type)
+);
+
+-- SLO 服务质量记录表
+CREATE TABLE IF NOT EXISTS green_slo_records (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  service_name VARCHAR(64) NOT NULL,
+  slo_window_start DATETIME NOT NULL,
+  slo_window_end DATETIME NOT NULL,
+  total_requests BIGINT NOT NULL DEFAULT 0,
+  error_requests BIGINT NOT NULL DEFAULT 0,
+  p50_latency DOUBLE NOT NULL DEFAULT 0,
+  p95_latency DOUBLE NOT NULL DEFAULT 0,
+  p99_latency DOUBLE NOT NULL DEFAULT 0,
+  slo_rate DOUBLE NOT NULL DEFAULT 0,
+  INDEX idx_service_window (service_name, slo_window_end)
+);
+
+-- V0.1 SLO 指标时间序列表：服务/API 级 SLO 感知输入
+CREATE TABLE IF NOT EXISTS slo_metric_ts (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  cluster_uuid VARCHAR(64) NOT NULL DEFAULT '',
+  service_id VARCHAR(64) NOT NULL,
+  service_name VARCHAR(64) NOT NULL DEFAULT '',
+  api_id VARCHAR(64) NOT NULL DEFAULT '',
+  metric_time DATETIME NOT NULL,
+  qps DOUBLE NOT NULL DEFAULT 0,
+  p95_latency DOUBLE NOT NULL DEFAULT 0,
+  p99_latency DOUBLE NOT NULL DEFAULT 0,
+  error_rate DOUBLE NOT NULL DEFAULT 0,
+  replica_count INT NOT NULL DEFAULT 0,
+  cpu_util DOUBLE NOT NULL DEFAULT 0,
+  gpu_util DOUBLE NOT NULL DEFAULT 0,
+  node_power DOUBLE NOT NULL DEFAULT 0,
+  p99_latency_target DOUBLE NOT NULL DEFAULT 500,
+  error_rate_target DOUBLE NOT NULL DEFAULT 0.1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_slo_metric_point (cluster_uuid, service_id, api_id, metric_time),
+  INDEX idx_slo_metric_service_time (service_id, api_id, metric_time),
+  INDEX idx_slo_metric_cluster_time (cluster_uuid, metric_time)
+);
+
+-- V0.1 SLO 状态表：规则阈值与风险评分输出
+CREATE TABLE IF NOT EXISTS slo_status (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  cluster_uuid VARCHAR(64) NOT NULL DEFAULT '',
+  service_id VARCHAR(64) NOT NULL,
+  service_name VARCHAR(64) NOT NULL DEFAULT '',
+  api_id VARCHAR(64) NOT NULL DEFAULT '',
+  status_time DATETIME NOT NULL,
+  slo_status VARCHAR(16) NOT NULL DEFAULT 'NORMAL',
+  violation_risk DOUBLE NOT NULL DEFAULT 0,
+  reason VARCHAR(512) NOT NULL DEFAULT '',
+  qps DOUBLE NOT NULL DEFAULT 0,
+  p95_latency DOUBLE NOT NULL DEFAULT 0,
+  p99_latency DOUBLE NOT NULL DEFAULT 0,
+  error_rate DOUBLE NOT NULL DEFAULT 0,
+  replica_count INT NOT NULL DEFAULT 0,
+  cpu_util DOUBLE NOT NULL DEFAULT 0,
+  gpu_util DOUBLE NOT NULL DEFAULT 0,
+  node_power DOUBLE NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_slo_status_point (cluster_uuid, service_id, api_id, status_time),
+  INDEX idx_slo_status_service_time (service_id, api_id, status_time),
+  INDEX idx_slo_status_cluster_time (cluster_uuid, status_time),
+  INDEX idx_slo_status_state (slo_status)
+);
+
+-- V0.2 端到端 SLO 目标表：业务流程级 SLO 输入
+CREATE TABLE IF NOT EXISTS slo_e2e_objective (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  objective_id VARCHAR(64) NOT NULL,
+  cluster_uuid VARCHAR(64) NOT NULL DEFAULT '',
+  business_flow VARCHAR(128) NOT NULL DEFAULT '',
+  target_p99_latency DOUBLE NOT NULL DEFAULT 1000,
+  target_error_rate DOUBLE NOT NULL DEFAULT 0.1,
+  allocation_method VARCHAR(32) NOT NULL DEFAULT 'risk_weighted',
+  is_active TINYINT NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_slo_e2e_objective (objective_id),
+  INDEX idx_slo_e2e_cluster_active (cluster_uuid, is_active)
+);
+
+-- V0.2 服务调用链表：描述端到端流程中的服务依赖与关键路径
+CREATE TABLE IF NOT EXISTS slo_service_dependency (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  objective_id VARCHAR(64) NOT NULL,
+  upstream_service_id VARCHAR(64) NOT NULL DEFAULT '',
+  downstream_service_id VARCHAR(64) NOT NULL DEFAULT '',
+  service_id VARCHAR(64) NOT NULL,
+  service_name VARCHAR(64) NOT NULL DEFAULT '',
+  api_id VARCHAR(64) NOT NULL DEFAULT '',
+  is_critical TINYINT NOT NULL DEFAULT 0,
+  path_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_slo_dependency_node (objective_id, service_id, api_id),
+  INDEX idx_slo_dependency_objective (objective_id, path_order)
+);
+
+-- V0.2 服务级 SLO budget 分配结果表
+CREATE TABLE IF NOT EXISTS slo_budget_allocation (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  objective_id VARCHAR(64) NOT NULL,
+  cluster_uuid VARCHAR(64) NOT NULL DEFAULT '',
+  business_flow VARCHAR(128) NOT NULL DEFAULT '',
+  service_id VARCHAR(64) NOT NULL,
+  service_name VARCHAR(64) NOT NULL DEFAULT '',
+  api_id VARCHAR(64) NOT NULL DEFAULT '',
+  allocation_method VARCHAR(32) NOT NULL DEFAULT 'risk_weighted',
+  latency_contribution DOUBLE NOT NULL DEFAULT 0,
+  qps DOUBLE NOT NULL DEFAULT 0,
+  qps_cv DOUBLE NOT NULL DEFAULT 0,
+  error_rate DOUBLE NOT NULL DEFAULT 0,
+  critical_path TINYINT NOT NULL DEFAULT 0,
+  risk_weight DOUBLE NOT NULL DEFAULT 1,
+  budget_ratio DOUBLE NOT NULL DEFAULT 0,
+  p99_latency_budget DOUBLE NOT NULL DEFAULT 0,
+  error_rate_budget DOUBLE NOT NULL DEFAULT 0,
+  allocated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_slo_budget_allocation (objective_id, service_id, api_id, allocation_method),
+  INDEX idx_slo_budget_objective (objective_id, allocation_method),
+  INDEX idx_slo_budget_cluster_time (cluster_uuid, allocated_at)
+);
+
+-- V0.3 SLO代理模型预测结果表：资源配置 -> 尾延迟/违约概率
+CREATE TABLE IF NOT EXISTS slo_proxy_prediction (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  objective_id VARCHAR(64) NOT NULL,
+  cluster_uuid VARCHAR(64) NOT NULL DEFAULT '',
+  business_flow VARCHAR(128) NOT NULL DEFAULT '',
+  service_id VARCHAR(64) NOT NULL,
+  service_name VARCHAR(64) NOT NULL DEFAULT '',
+  api_id VARCHAR(64) NOT NULL DEFAULT '',
+  forecast_time DATETIME NOT NULL,
+  horizon_minutes INT NOT NULL DEFAULT 15,
+  qps_forecast DOUBLE NOT NULL DEFAULT 0,
+  request_mix VARCHAR(128) NOT NULL DEFAULT 'default',
+  replica_count INT NOT NULL DEFAULT 1,
+  cpu_request DOUBLE NOT NULL DEFAULT 0,
+  gpu_request DOUBLE NOT NULL DEFAULT 0,
+  memory_request_gb DOUBLE NOT NULL DEFAULT 0,
+  predicted_cpu_util DOUBLE NOT NULL DEFAULT 0,
+  predicted_gpu_util DOUBLE NOT NULL DEFAULT 0,
+  p99_latency_budget DOUBLE NOT NULL DEFAULT 0,
+  error_rate_budget DOUBLE NOT NULL DEFAULT 0,
+  predicted_p95_latency DOUBLE NOT NULL DEFAULT 0,
+  predicted_p99_latency DOUBLE NOT NULL DEFAULT 0,
+  violation_probability DOUBLE NOT NULL DEFAULT 0,
+  model_name VARCHAR(64) NOT NULL DEFAULT 'slo_proxy_baseline',
+  model_version VARCHAR(64) NOT NULL DEFAULT 'v0.3',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_slo_proxy_prediction (objective_id, service_id, api_id, horizon_minutes, model_name),
+  INDEX idx_slo_proxy_objective (objective_id, horizon_minutes),
+  INDEX idx_slo_proxy_cluster_time (cluster_uuid, forecast_time)
+);
+
+-- 集群资源快照表
+CREATE TABLE IF NOT EXISTS green_resource_snapshot (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  cluster_uuid VARCHAR(64) NOT NULL,
+  snapshot_time DATETIME NOT NULL,
+  cpu_contention DOUBLE NOT NULL DEFAULT 0,
+  gpu_contention DOUBLE NOT NULL DEFAULT 0,
+  memory_usage DOUBLE NOT NULL DEFAULT 0,
+  network_bandwidth DOUBLE NOT NULL DEFAULT 0,
+  compute_power DOUBLE NOT NULL DEFAULT 0,
+  storage_power DOUBLE NOT NULL DEFAULT 0,
+  soc DOUBLE NOT NULL DEFAULT 0,
+  soh DOUBLE NOT NULL DEFAULT 0,
+  battery_temp DOUBLE NOT NULL DEFAULT 0,
+  pv_output DOUBLE NOT NULL DEFAULT 0,
+  INDEX idx_cluster_time (cluster_uuid, snapshot_time)
+);
+
+-- 能耗预测结果表
+CREATE TABLE IF NOT EXISTS green_energy_forecast (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  forecast_time DATETIME NOT NULL,
+  node_uuid VARCHAR(64) NOT NULL,
+  cluster_uuid VARCHAR(64) NOT NULL,
+  predicted_cpu_usage DOUBLE NOT NULL DEFAULT 0,
+  predicted_gpu_usage DOUBLE NOT NULL DEFAULT 0,
+  predicted_memory_usage DOUBLE NOT NULL DEFAULT 0,
+  predicted_node_power DOUBLE NOT NULL DEFAULT 0,
+  predicted_service_energy DOUBLE NOT NULL DEFAULT 0,
+  upper_bound DOUBLE NOT NULL DEFAULT 0,
+  lower_bound DOUBLE NOT NULL DEFAULT 0,
+  confidence_level DOUBLE NOT NULL DEFAULT 0.95,
+  task_type VARCHAR(32) NOT NULL DEFAULT 'ai_infer',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_node_forecast_time (node_uuid, forecast_time),
+  INDEX idx_forecast_time (forecast_time)
+);
+
+-- 节点级负荷模型预测结果表
+CREATE TABLE IF NOT EXISTS green_model_prediction (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  cluster_uuid VARCHAR(64) NOT NULL DEFAULT '',
+  node_uuid VARCHAR(64) NOT NULL DEFAULT '',
+  target_metric VARCHAR(32) NOT NULL DEFAULT '',
+  forecast_time DATETIME NOT NULL,
+  horizon INT NOT NULL DEFAULT 0,
+  y_pred DOUBLE NOT NULL DEFAULT 0,
+  risk_level VARCHAR(16) NOT NULL DEFAULT 'LOW',
+  model_name VARCHAR(32) NOT NULL DEFAULT 'lightgbm',
+  model_version VARCHAR(64) NOT NULL DEFAULT '',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_green_model_prediction (cluster_uuid, node_uuid, target_metric, forecast_time, horizon, model_version),
+  INDEX idx_green_model_prediction_node_forecast (node_uuid, forecast_time),
+  INDEX idx_green_model_prediction_model (model_name, model_version),
+  INDEX idx_green_model_prediction_risk (risk_level)
+);
+
+-- ============================================
 -- Export Complete
 -- ============================================

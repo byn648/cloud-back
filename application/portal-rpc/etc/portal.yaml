@@ -34,7 +34,7 @@ Cache:
   PingTimeout: 10s # default 1s
 
 Mysql:
-  DataSource: root:12345678@tcp(172.16.1.61:3307)/kube_nova?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s
+  DataSource: root:123456@tcp(127.0.0.1:13308)/kube_nova?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s
   MaxOpenConns: 100
   MaxIdleConns: 10
   ConnMaxLifetime: 30m
