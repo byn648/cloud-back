@@ -58,6 +58,7 @@ type (
 	ClusterAppValidateResp               = pb.ClusterAppValidateResp
 	ClusterAuthInfoReq                   = pb.ClusterAuthInfoReq
 	ClusterAuthInfoResp                  = pb.ClusterAuthInfoResp
+	Cluster                              = pb.Cluster
 	ClusterDetailReq                     = pb.ClusterDetailReq
 	ClusterDetailResp                    = pb.ClusterDetailResp
 	ClusterEvictReq                      = pb.ClusterEvictReq
