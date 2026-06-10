@@ -288,6 +288,18 @@ type (
     GetClusterNamespaceListRequest {
         ClusterUuid string `path:"clusterUuid" validate:"required"`
     }
+    ClusterMember {
+        UserId uint64 `json:"userId"`       // 用户ID
+        Username string `json:"username"`   // 用户名
+        Nickname string `json:"nickname"`   // 昵称
+    }
+    GetClusterMembersRequest {
+        ClusterUuid string `path:"clusterUuid" validate:"required"`
+    }
+    SetClusterMembersRequest {
+        ClusterUuid string `path:"clusterUuid" validate:"required"`
+        UserIds []uint64 `json:"userIds,optional"` // 分配用户ID列表（覆盖式）
+    }
 )
 
 @server(
@@ -350,4 +362,12 @@ service manager-api {
     // 获取某一个集群的所有ns
     @handler GetClusterNamespacesHandler
     get /:clusterUuid/namespaces (GetClusterNamespaceListRequest) returns ([]string)
+
+    // 查询集群已分配用户（仅 super_admin）
+    @handler GetClusterMembersHandler
+    get /:clusterUuid/users (GetClusterMembersRequest) returns ([]ClusterMember)
+
+    // 设置集群分配用户（仅 super_admin，覆盖式）
+    @handler SetClusterMembersHandler
+    put /:clusterUuid/users (SetClusterMembersRequest) returns (string)
 }

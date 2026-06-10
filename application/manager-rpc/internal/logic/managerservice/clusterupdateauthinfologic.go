@@ -37,6 +37,15 @@ func (l *ClusterUpdateAuthInfoLogic) ClusterUpdateAuthInfo(in *pb.ClusterUpdateA
 		l.Errorf("查询集群数据失败: %v", err)
 		return nil, err
 	}
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	canAccess, err := canAccessClusterByID(l.ctx, l.svcCtx, oldCluster.Id, username, roles, userID)
+	if err != nil {
+		l.Errorf("校验集群认证修改权限失败 [id=%d]: %v", oldCluster.Id, err)
+		return nil, errorx.Msg("校验集群认证修改权限失败")
+	}
+	if !canAccess {
+		return nil, errorx.Msg("无权限修改该集群认证信息")
+	}
 
 	// 验证认证类型
 	authtypeList := []string{"incluster", "certificate", "token", "kubeconfig"}

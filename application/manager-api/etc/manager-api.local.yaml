@@ -34,6 +34,12 @@ Cache:
   NonBlock: true
   PingTimeout: 3s
 
+Mysql:
+  DataSource: root:zmy02284310@tcp(127.0.0.1:3306)/kube_nova?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s
+  MaxOpenConns: 100
+  MaxIdleConns: 10
+  ConnMaxLifetime: 30m
+
 ManagerRpc:
   Endpoints:
     - 127.0.0.1:30011

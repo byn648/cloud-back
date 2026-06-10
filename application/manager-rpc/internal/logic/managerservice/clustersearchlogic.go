@@ -34,8 +34,19 @@ func (l *ClusterSearchLogic) ClusterSearch(in *pb.SearchClusterReq) (*pb.SearchC
 	// 1. 设置默认参数
 	l.setDefaultParams(in)
 
-	// 2. 构建查询条件
-	query, args := l.buildQueryConditions(in)
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	isSuper := isClusterSuperAdmin(username, roles)
+	if !isSuper && strings.TrimSpace(username) == "" {
+		return &pb.SearchClusterResp{Total: 0, Data: []*pb.Cluster{}}, nil
+	}
+
+	// 2. 构建基础查询条件
+	baseQuery, baseArgs := l.buildQueryConditions(in)
+	query := baseQuery
+	args := baseArgs
+	if !isSuper {
+		query, args = buildClusterVisibleQuery(baseQuery, baseArgs, username, userID, true)
+	}
 
 	// 3. 获取存储 URL
 	storageUrl, err := l.getStorageUrl()
@@ -53,6 +64,19 @@ func (l *ClusterSearchLogic) ClusterSearch(in *pb.SearchClusterReq) (*pb.SearchC
 		query,
 		args...,
 	)
+	if err != nil && !isSuper && clusterMemberTableMissing(err) {
+		// 兼容数据库未升级（缺少 onec_cluster_member 表）时，退化到“仅创建者可见”。
+		fallbackQuery, fallbackArgs := buildClusterVisibleQuery(baseQuery, baseArgs, username, userID, false)
+		clusters, total, err = l.svcCtx.OnecClusterModel.Search(
+			l.ctx,
+			in.OrderField,
+			in.IsAsc,
+			in.Page,
+			in.PageSize,
+			fallbackQuery,
+			fallbackArgs...,
+		)
+	}
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			l.Infof("未找到匹配的集群")

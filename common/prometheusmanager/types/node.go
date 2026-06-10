@@ -371,12 +371,14 @@ type PodResourceUsage struct {
 
 // NodePodBrief 节点上 Pod 简要信息
 type NodePodBrief struct {
-	Namespace    string  `json:"namespace"`
-	PodName      string  `json:"podName"`
-	Phase        string  `json:"phase"`
-	CPUUsage     float64 `json:"cpuUsage"`
-	MemoryUsage  int64   `json:"memoryUsage"`
-	RestartCount int64   `json:"restartCount"`
+	Namespace            string  `json:"namespace"`
+	PodName              string  `json:"podName"`
+	Phase                string  `json:"phase"`
+	CPUUsage             float64 `json:"cpuUsage"`
+	MemoryUsage          int64   `json:"memoryUsage"`
+	RestartCount         int64   `json:"restartCount"`
+	PodCurrentPowerWatts float64 `json:"podCurrentPowerWatts"`
+	PodEnergyDeltaJoules float64 `json:"podEnergyDeltaJoules"`
 }
 
 // ==================== Node 对比 ====================

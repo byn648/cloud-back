@@ -24,6 +24,33 @@ type (
         Namespaces ClusterNamespaceMetrics `json:"namespaces"`
     }
 
+    ClusterEnergyScopeSummary {
+        ClusterCount int64 `json:"clusterCount"`
+        DurationSeconds int64 `json:"durationSeconds"`
+        PodCurrentPowerWatts float64 `json:"podCurrentPowerWatts"`
+        PodEnergyDeltaJoules float64 `json:"podEnergyDeltaJoules"`
+        NodeCurrentPowerWatts float64 `json:"nodeCurrentPowerWatts"`
+        NodeEnergyDeltaJoules float64 `json:"nodeEnergyDeltaJoules"`
+    }
+
+    ClusterEnergyScopeItem {
+        ClusterUuid string `json:"clusterUuid"`
+        ClusterName string `json:"clusterName"`
+        Environment string `json:"environment"`
+        DurationSeconds int64 `json:"durationSeconds"`
+        PodCurrentPowerWatts float64 `json:"podCurrentPowerWatts"`
+        PodEnergyDeltaJoules float64 `json:"podEnergyDeltaJoules"`
+        NodeCurrentPowerWatts float64 `json:"nodeCurrentPowerWatts"`
+        NodeEnergyDeltaJoules float64 `json:"nodeEnergyDeltaJoules"`
+        NodeMetric string `json:"nodeMetric"`
+        Error string `json:"error,optional"`
+    }
+
+    ClusterEnergyScopeOverview {
+        Summary ClusterEnergyScopeSummary `json:"summary"`
+        Items []ClusterEnergyScopeItem `json:"items"`
+    }
+
         //================================ 集群资源指标 ================================
 
     ClusterResourceMetrics {
@@ -479,6 +506,15 @@ type (
         Data ClusterOverview `json:"data"`
     }
 
+    GetScopedClusterEnergyOverviewRequest {
+        Start string `form:"start,optional"`
+        End string `form:"end,optional"`
+        Step string `form:"step,optional"`
+    }
+    GetScopedClusterEnergyOverviewResponse {
+        Data ClusterEnergyScopeOverview `json:"data"`
+    }
+
     GetClusterResourcesRequest {
         ClusterUuid string `form:"clusterUuid" validate:"required"`
         Start string `form:"start,optional"`
@@ -616,6 +652,10 @@ service console-api {
     @doc "获取集群资源指标"
     @handler GetClusterResourcesHandler
     get /resources (GetClusterResourcesRequest) returns (GetClusterResourcesResponse)
+
+    @doc "获取当前账号可见集群能耗概览"
+    @handler GetScopedClusterEnergyOverviewHandler
+    get /energy/scope-overview (GetScopedClusterEnergyOverviewRequest) returns (GetScopedClusterEnergyOverviewResponse)
 
     @doc "获取集群 CPU 指标"
     @handler GetClusterCPUMetricsHandler

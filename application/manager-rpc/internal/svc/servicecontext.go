@@ -87,7 +87,11 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		NonBlock:  true,
 		Timeout:   30000,
 	}
-	managerRpc := zrpc.MustNewClient(managerRpcConf, zrpc.WithUnaryClientInterceptor(interceptors.ClientErrorInterceptor()))
+	managerRpc := zrpc.MustNewClient(
+		managerRpcConf,
+		zrpc.WithUnaryClientInterceptor(interceptors.ClientMetadataInterceptor()),
+		zrpc.WithUnaryClientInterceptor(interceptors.ClientErrorInterceptor()),
+	)
 	alertRpc := zrpc.MustNewClient(c.PortalRpc, zrpc.WithUnaryClientInterceptor(interceptors.ClientErrorInterceptor()))
 
 	// ==================== 初始化 Redis ====================

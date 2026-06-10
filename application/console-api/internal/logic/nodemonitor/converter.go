@@ -500,12 +500,14 @@ func convertNodePodBriefList(list []pmtypes.NodePodBrief) []types.NodePodBrief {
 	result := make([]types.NodePodBrief, len(list))
 	for i, p := range list {
 		result[i] = types.NodePodBrief{
-			Namespace:    p.Namespace,
-			PodName:      p.PodName,
-			Phase:        p.Phase,
-			CPUUsage:     p.CPUUsage,
-			MemoryUsage:  p.MemoryUsage,
-			RestartCount: p.RestartCount,
+			Namespace:            p.Namespace,
+			PodName:              p.PodName,
+			Phase:                p.Phase,
+			CPUUsage:             p.CPUUsage,
+			MemoryUsage:          p.MemoryUsage,
+			RestartCount:         p.RestartCount,
+			PodCurrentPowerWatts: p.PodCurrentPowerWatts,
+			PodEnergyDeltaJoules: p.PodEnergyDeltaJoules,
 		}
 	}
 	return result

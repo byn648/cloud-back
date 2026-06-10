@@ -445,6 +445,16 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Handler: cluster.GetClusterNetworkHandler(serverCtx),
 				},
 				{
+					Method:  http.MethodGet,
+					Path:    "/:clusterUuid/users",
+					Handler: cluster.GetClusterMembersHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPut,
+					Path:    "/:clusterUuid/users",
+					Handler: cluster.SetClusterMembersHandler(serverCtx),
+				},
+				{
 					Method:  http.MethodPut,
 					Path:    "/:id",
 					Handler: cluster.UpdateClusterHandler(serverCtx),

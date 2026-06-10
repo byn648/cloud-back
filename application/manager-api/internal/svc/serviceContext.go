@@ -1,6 +1,8 @@
 package svc
 
 import (
+	"strings"
+
 	"github.com/yanshicheng/kube-nova/application/manager-api/internal/config"
 	"github.com/yanshicheng/kube-nova/application/manager-rpc/client/managerservice"
 	"github.com/yanshicheng/kube-nova/application/portal-rpc/client/storageservice"
@@ -11,6 +13,7 @@ import (
 	promcluster "github.com/yanshicheng/kube-nova/common/prometheusmanager/cluster"
 	"github.com/yanshicheng/kube-nova/common/verify"
 	"github.com/zeromicro/go-zero/core/stores/redis"
+	"github.com/zeromicro/go-zero/core/stores/sqlx"
 	"github.com/zeromicro/go-zero/rest"
 	"github.com/zeromicro/go-zero/zrpc"
 )
@@ -18,6 +21,7 @@ import (
 type ServiceContext struct {
 	Config            config.Config
 	Cache             *redis.Redis
+	DB                sqlx.SqlConn
 	Validator         *verify.ValidatorInstance
 	JWTAuthMiddleware rest.Middleware
 	StoreRpc          storageservice.StorageService
@@ -45,9 +49,27 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	)
 	rds := redis.MustNewRedis(c.Cache)
 	managerService := managerservice.NewManagerService(managerRpc)
+	var dbConn sqlx.SqlConn
+	if strings.TrimSpace(c.Mysql.DataSource) != "" {
+		dbConn = sqlx.NewMysql(c.Mysql.DataSource)
+		rawDB, err := dbConn.RawDB()
+		if err != nil {
+			panic(err)
+		}
+		if c.Mysql.MaxOpenConns > 0 {
+			rawDB.SetMaxOpenConns(c.Mysql.MaxOpenConns)
+		}
+		if c.Mysql.MaxIdleConns > 0 {
+			rawDB.SetMaxIdleConns(c.Mysql.MaxIdleConns)
+		}
+		if c.Mysql.ConnMaxLifetime > 0 {
+			rawDB.SetConnMaxLifetime(c.Mysql.ConnMaxLifetime)
+		}
+	}
 	return &ServiceContext{
 		Config:    c,
 		Cache:     rds,
+		DB:        dbConn,
 		Validator: validator,
 		JWTAuthMiddleware: middleware.NewJWTAuthMiddleware(
 			sysauthservice.NewSysAuthService(authRpc)).Handle,

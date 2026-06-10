@@ -27,6 +27,16 @@ func NewClusterAuthInfoLogic(ctx context.Context, svcCtx *svc.ServiceContext) *C
 }
 
 func (l *ClusterAuthInfoLogic) ClusterAuthInfo(in *pb.ClusterAuthInfoReq) (*pb.ClusterAuthInfoResp, error) {
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	canAccess, err := canAccessClusterByUUID(l.ctx, l.svcCtx, in.ClusterUuid, username, roles, userID)
+	if err != nil {
+		l.Errorf("校验集群认证查看权限失败 [clusterUuid=%s]: %v", in.ClusterUuid, err)
+		return nil, errorx.Msg("校验集群认证查看权限失败")
+	}
+	if !canAccess {
+		return nil, errorx.Msg("无权限查看该集群认证信息")
+	}
+
 	// 1. 查询认证信息
 	auth, err := l.svcCtx.OnecClusterAuthModel.FindOneByClusterUuid(l.ctx, in.ClusterUuid)
 	if err != nil {

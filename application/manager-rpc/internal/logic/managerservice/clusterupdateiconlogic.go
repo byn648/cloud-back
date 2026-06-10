@@ -33,6 +33,15 @@ func (l *ClusterUpdateIconLogic) ClusterUpdateIcon(in *pb.ClusterUpdateAvatarReq
 		l.Errorf("查询集群数据失败: %v", err)
 		return nil, err
 	}
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	canAccess, err := canAccessClusterByID(l.ctx, l.svcCtx, cluster.Id, username, roles, userID)
+	if err != nil {
+		l.Errorf("校验集群图标修改权限失败 [id=%d]: %v", cluster.Id, err)
+		return nil, errorx.Msg("校验集群图标修改权限失败")
+	}
+	if !canAccess {
+		return nil, errorx.Msg("无权限修改该集群图标")
+	}
 	cluster.Avatar = in.Avatar
 	if err := l.svcCtx.OnecClusterModel.Update(l.ctx, cluster); err != nil {
 		l.Errorf("更新集群数据失败: %v", err)

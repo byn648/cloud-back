@@ -53,6 +53,12 @@ Cache:
   NonBlock: true # bool
   PingTimeout: 3s # default 1s
 
+Mysql:
+  DataSource: root:12345678@tcp(172.16.1.61:3307)/kube_nova?charset=utf8mb4&parseTime=True&loc=Local&timeout=10s
+  MaxOpenConns: 100
+  MaxIdleConns: 10
+  ConnMaxLifetime: 30m
+
 
 ManagerRpc:
   Endpoints:
@@ -73,4 +79,3 @@ PortalRpc:
   #    Key: portal.portal-rpc
   NonBlock: true
   Timeout: 30000
-

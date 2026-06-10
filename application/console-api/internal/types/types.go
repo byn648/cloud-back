@@ -397,6 +397,33 @@ type ClusterOverview struct {
 	Namespaces   ClusterNamespaceMetrics    `json:"namespaces"`
 }
 
+type ClusterEnergyScopeSummary struct {
+	ClusterCount          int64   `json:"clusterCount"`
+	DurationSeconds       int64   `json:"durationSeconds"`
+	PodCurrentPowerWatts  float64 `json:"podCurrentPowerWatts"`
+	PodEnergyDeltaJoules  float64 `json:"podEnergyDeltaJoules"`
+	NodeCurrentPowerWatts float64 `json:"nodeCurrentPowerWatts"`
+	NodeEnergyDeltaJoules float64 `json:"nodeEnergyDeltaJoules"`
+}
+
+type ClusterEnergyScopeItem struct {
+	ClusterUuid           string  `json:"clusterUuid"`
+	ClusterName           string  `json:"clusterName"`
+	Environment           string  `json:"environment"`
+	DurationSeconds       int64   `json:"durationSeconds"`
+	PodCurrentPowerWatts  float64 `json:"podCurrentPowerWatts"`
+	PodEnergyDeltaJoules  float64 `json:"podEnergyDeltaJoules"`
+	NodeCurrentPowerWatts float64 `json:"nodeCurrentPowerWatts"`
+	NodeEnergyDeltaJoules float64 `json:"nodeEnergyDeltaJoules"`
+	NodeMetric            string  `json:"nodeMetric"`
+	Error                 string  `json:"error,omitempty"`
+}
+
+type ClusterEnergyScopeOverview struct {
+	Summary ClusterEnergyScopeSummary `json:"summary"`
+	Items   []ClusterEnergyScopeItem  `json:"items"`
+}
+
 type ClusterPodDataPoint struct {
 	Timestamp int64 `json:"timestamp"`
 	Total     int64 `json:"total"`
@@ -560,6 +587,15 @@ type ContainerDiskMetrics struct {
 	Current       DiskSnapshot    `json:"current"`
 	Trend         []DiskDataPoint `json:"trend"`
 	Summary       DiskSummary     `json:"summary"`
+}
+
+type ContainerEnergyMetrics struct {
+	Namespace     string            `json:"namespace"`
+	PodName       string            `json:"podName"`
+	ContainerName string            `json:"containerName"`
+	Current       EnergySnapshot    `json:"current"`
+	Trend         []EnergyDataPoint `json:"trend"`
+	Summary       EnergySummary     `json:"summary"`
 }
 
 type ContainerEnvironment struct {
@@ -1039,6 +1075,25 @@ type EnvFromSource struct {
 	SecretRef    string `json:"secretRef,optional"`
 }
 
+type EnergyDataPoint struct {
+	Timestamp   int64   `json:"timestamp"`
+	JoulesTotal float64 `json:"joulesTotal"`
+	PowerWatts  float64 `json:"powerWatts"`
+}
+
+type EnergySnapshot struct {
+	Timestamp   int64   `json:"timestamp"`
+	JoulesTotal float64 `json:"joulesTotal"`
+	PowerWatts  float64 `json:"powerWatts"`
+}
+
+type EnergySummary struct {
+	DurationSeconds   int64   `json:"durationSeconds"`
+	EnergyDeltaJoules float64 `json:"energyDeltaJoules"`
+	AvgPowerWatts     float64 `json:"avgPowerWatts"`
+	MaxPowerWatts     float64 `json:"maxPowerWatts"`
+}
+
 type ErrorRateByDimension struct {
 	Name      string                `json:"name"`
 	Namespace string                `json:"namespace,optional"`
@@ -1490,6 +1545,16 @@ type GetClusterOverviewResponse struct {
 	Data ClusterOverview `json:"data"`
 }
 
+type GetScopedClusterEnergyOverviewRequest struct {
+	Start string `form:"start,optional"`
+	End   string `form:"end,optional"`
+	Step  string `form:"step,optional"`
+}
+
+type GetScopedClusterEnergyOverviewResponse struct {
+	Data ClusterEnergyScopeOverview `json:"data"`
+}
+
 type GetClusterPodsRequest struct {
 	ClusterUuid string `form:"clusterUuid" validate:"required"`
 	Start       string `form:"start,optional"`
@@ -1537,6 +1602,20 @@ type GetContainerEnvironmentRequest struct {
 
 type GetContainerEnvironmentResponse struct {
 	Data ContainerEnvironment `json:"data"`
+}
+
+type GetContainerEnergyRequest struct {
+	ClusterUuid   string `form:"clusterUuid" validate:"required"`
+	Namespace     string `form:"namespace" validate:"required"`
+	PodName       string `form:"podName" validate:"required"`
+	ContainerName string `form:"containerName" validate:"required"`
+	Start         string `form:"start,optional"`
+	End           string `form:"end,optional"`
+	Step          string `form:"step,optional"`
+}
+
+type GetContainerEnergyResponse struct {
+	Data ContainerEnergyMetrics `json:"data"`
 }
 
 type GetContainerLogMetricsRequest struct {
@@ -2393,6 +2472,19 @@ type GetNodeRankingRequest struct {
 
 type GetNodeRankingResponse struct {
 	Data NodeRanking `json:"data"`
+}
+
+type GetNodeMicroserviceAnomalyRequest struct {
+	ClusterUuid   string  `form:"clusterUuid,optional"`
+	NodeName      string  `form:"nodeName,optional"`
+	Start         string  `form:"start,optional"`
+	End           string  `form:"end,optional"`
+	Limit         int     `form:"limit,default=200" validate:"min=1,max=1000"`
+	MinPowerWatts float64 `form:"minPowerWatts,optional"`
+}
+
+type GetNodeMicroserviceAnomalyResponse struct {
+	Data NodeMicroserviceAnomaly `json:"data"`
 }
 
 type GetNodeSystemRequest struct {
@@ -3931,12 +4023,14 @@ type NodeNetworkMetrics struct {
 }
 
 type NodePodBrief struct {
-	Namespace    string  `json:"namespace"`
-	PodName      string  `json:"podName"`
-	Phase        string  `json:"phase"`
-	CPUUsage     float64 `json:"cpuUsage"`
-	MemoryUsage  int64   `json:"memoryUsage"`
-	RestartCount int64   `json:"restartCount"`
+	Namespace            string  `json:"namespace"`
+	PodName              string  `json:"podName"`
+	Phase                string  `json:"phase"`
+	CPUUsage             float64 `json:"cpuUsage"`
+	MemoryUsage          int64   `json:"memoryUsage"`
+	RestartCount         int64   `json:"restartCount"`
+	PodCurrentPowerWatts float64 `json:"podCurrentPowerWatts"`
+	PodEnergyDeltaJoules float64 `json:"podEnergyDeltaJoules"`
 }
 
 type NodePodMetrics struct {
@@ -3967,6 +4061,37 @@ type NodeRankingItem struct {
 	NodeName string  `json:"nodeName"`
 	Value    float64 `json:"value"`
 	Unit     string  `json:"unit"`
+}
+
+type MicroserviceAnomalySummary struct {
+	TotalEvents      int64   `json:"totalEvents"`
+	HighRiskServices int64   `json:"highRiskServices"`
+	RelatedClusters  int64   `json:"relatedClusters"`
+	ExtraPowerKwh    float64 `json:"extraPowerKwh"`
+}
+
+type MicroserviceAnomalyItem struct {
+	Id                 string  `json:"id"`
+	ClusterUuid        string  `json:"clusterUuid"`
+	ClusterName        string  `json:"clusterName"`
+	NodeName           string  `json:"nodeName"`
+	Namespace          string  `json:"namespace"`
+	Service            string  `json:"service"`
+	Workload           string  `json:"workload"`
+	AnomalyType        string  `json:"anomalyType"`
+	Reason             string  `json:"reason"`
+	Severity           string  `json:"severity"`
+	CurrentPowerWatts  float64 `json:"currentPowerWatts"`
+	BaselinePowerWatts float64 `json:"baselinePowerWatts"`
+	ExtraPowerKwh      float64 `json:"extraPowerKwh"`
+	DeltaPercent       float64 `json:"deltaPercent"`
+	DetectedAt         int64   `json:"detectedAt"`
+}
+
+type NodeMicroserviceAnomaly struct {
+	Summary  MicroserviceAnomalySummary `json:"summary"`
+	Items    []MicroserviceAnomalyItem  `json:"items"`
+	Warnings []string                   `json:"warnings"`
 }
 
 type NodeResourceQuantity struct {

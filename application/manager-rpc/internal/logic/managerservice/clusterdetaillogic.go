@@ -41,6 +41,15 @@ func (l *ClusterDetailLogic) ClusterDetail(in *pb.ClusterDetailReq) (*pb.Cluster
 		l.Errorf("查询集群失败: %v", err)
 		return nil, errorx.Msg("查询集群失败")
 	}
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	canAccess, err := canAccessClusterByID(l.ctx, l.svcCtx, cluster.Id, username, roles, userID)
+	if err != nil {
+		l.Errorf("校验集群查看权限失败 [id=%d]: %v", cluster.Id, err)
+		return nil, errorx.Msg("校验集群查看权限失败")
+	}
+	if !canAccess {
+		return nil, errorx.Msg("无权限查看该集群")
+	}
 
 	url, err := l.svcCtx.Storage.GetStorageUrl(l.ctx, &storageservice.GetStorageUrlRequest{})
 	if err != nil {

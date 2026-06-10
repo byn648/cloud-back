@@ -369,6 +369,40 @@ type ContainerDiskMetrics struct {
 	Summary       DiskSummary     `json:"summary"`
 }
 
+// ==================== 能耗指标 ====================
+
+// ContainerEnergyMetrics 容器能耗指标
+type ContainerEnergyMetrics struct {
+	Namespace     string            `json:"namespace"`
+	PodName       string            `json:"podName"`
+	ContainerName string            `json:"containerName"`
+	Current       EnergySnapshot    `json:"current"`
+	Trend         []EnergyDataPoint `json:"trend"`
+	Summary       EnergySummary     `json:"summary"`
+}
+
+// EnergySnapshot 能耗快照
+type EnergySnapshot struct {
+	Timestamp   time.Time `json:"timestamp"`
+	JoulesTotal float64   `json:"joulesTotal"` // 累计能耗（J）
+	PowerWatts  float64   `json:"powerWatts"`  // 即时功率（W）
+}
+
+// EnergyDataPoint 能耗趋势数据点
+type EnergyDataPoint struct {
+	Timestamp   time.Time `json:"timestamp"`
+	JoulesTotal float64   `json:"joulesTotal"` // 累计能耗（J）
+	PowerWatts  float64   `json:"powerWatts"`  // 功率（W）
+}
+
+// EnergySummary 能耗汇总
+type EnergySummary struct {
+	DurationSeconds   int64   `json:"durationSeconds"`   // 查询区间时长（秒）
+	EnergyDeltaJoules float64 `json:"energyDeltaJoules"` // 区间能耗增量（J）
+	AvgPowerWatts     float64 `json:"avgPowerWatts"`     // 区间平均功率（W）
+	MaxPowerWatts     float64 `json:"maxPowerWatts"`     // 区间峰值功率（W）
+}
+
 // ==================== Pod 状态指标 ====================
 
 // PodStatusMetrics Pod 状态指标
@@ -781,6 +815,7 @@ type PodOperator interface {
 	// 磁盘相关
 	GetDiskIO(namespace, pod string, timeRange *TimeRange) (*DiskMetrics, error)
 	GetDiskRate(namespace, pod string, timeRange *TimeRange) (*DiskRateMetrics, error)
+	GetContainerEnergy(namespace, pod, container string, timeRange *TimeRange) (*ContainerEnergyMetrics, error)
 
 	// Pod 状态
 	GetPodStatus(namespace, pod string, timeRange *TimeRange) (*PodStatusMetrics, error)

@@ -28,6 +28,15 @@ func NewClusterResourceInfoLogic(ctx context.Context, svcCtx *svc.ServiceContext
 
 // 集群资源
 func (l *ClusterResourceInfoLogic) ClusterResourceInfo(in *pb.ClusterResourceInfoReq) (*pb.ClusterResourceInfoResp, error) {
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	canAccess, err := canAccessClusterByUUID(l.ctx, l.svcCtx, in.ClusterUuid, username, roles, userID)
+	if err != nil {
+		l.Errorf("校验集群资源查看权限失败 [clusterUuid=%s]: %v", in.ClusterUuid, err)
+		return nil, errorx.Msg("校验集群资源查看权限失败")
+	}
+	if !canAccess {
+		return nil, errorx.Msg("无权限查看该集群资源")
+	}
 
 	// 1. 查询资源信息
 	resource, err := l.svcCtx.OnecClusterResourceModel.FindOneByClusterUuid(l.ctx, in.ClusterUuid)

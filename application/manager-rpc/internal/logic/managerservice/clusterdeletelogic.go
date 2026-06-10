@@ -47,6 +47,14 @@ func (l *ClusterDeleteLogic) ClusterDelete(in *pb.DeleteClusterReq) (*pb.DeleteC
 		}
 		return nil, fmt.Errorf("查询集群失败: %v", err)
 	}
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	canAccess, err := canAccessClusterByID(l.ctx, l.svcCtx, cluster.Id, username, roles, userID)
+	if err != nil {
+		return nil, fmt.Errorf("校验集群删除权限失败: %v", err)
+	}
+	if !canAccess {
+		return nil, fmt.Errorf("无权限删除该集群")
+	}
 
 	// 2. 检查是否有非默认项目在使用此集群
 	usageInfos, err := l.checkClusterUsage(cluster.Uuid)
@@ -57,7 +65,7 @@ func (l *ClusterDeleteLogic) ClusterDelete(in *pb.DeleteClusterReq) (*pb.DeleteC
 	// 3. 如果有非默认项目在使用，返回详细错误信息
 	if len(usageInfos) > 0 {
 		errMsg := l.buildUsageErrorMessage(usageInfos)
-		return nil, fmt.Errorf("%s", errMsg)
+		return nil, errors.New(errMsg)
 	}
 
 	// 4. 执行删除操作（事务）
@@ -211,7 +219,15 @@ func (l *ClusterDeleteLogic) deleteClusterCompletely(ctx context.Context, sessio
 		return fmt.Errorf("删除集群认证信息失败: %v", err)
 	}
 
-	// 2.6 删除集群主表 (cluster)
+	// 2.6 删除集群成员分配 (cluster_member)
+	if _, err := session.ExecCtx(ctx, "DELETE FROM onec_cluster_member WHERE cluster_uuid = ?", clusterUuid); err != nil {
+		if !clusterMemberTableMissing(err) {
+			return fmt.Errorf("删除集群成员分配失败: %v", err)
+		}
+		l.Logger.Infof("数据库缺少 onec_cluster_member 表，跳过集群成员分配清理")
+	}
+
+	// 2.7 删除集群主表 (cluster)
 	_, err = l.svcCtx.OnecClusterModel.TransOnSql(ctx, session, cluster.Id,
 		"DELETE FROM {table} WHERE `id` = ?", cluster.Id)
 	if err != nil {

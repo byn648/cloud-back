@@ -38,6 +38,15 @@ func (l *ClusterUpdateLogic) ClusterUpdate(in *pb.UpdateClusterReq) (*pb.UpdateC
 		l.Errorf("查询集群失败: %v", err)
 		return nil, errorx.Msg("查询集群失败")
 	}
+	username, roles, userID := getClusterCurrentUserContext(l.ctx)
+	canAccess, err := canAccessClusterByID(l.ctx, l.svcCtx, oldCluster.Id, username, roles, userID)
+	if err != nil {
+		l.Errorf("校验集群修改权限失败 [id=%d]: %v", oldCluster.Id, err)
+		return nil, errorx.Msg("校验集群修改权限失败")
+	}
+	if !canAccess {
+		return nil, errorx.Msg("无权限修改该集群")
+	}
 
 	if in.Name != "" && in.Name != oldCluster.Name {
 		oldCluster.Name = in.Name

@@ -391,6 +391,21 @@ type Cluster struct {
 	CreatedAt    int64  `json:"createdAt"`
 }
 
+type ClusterMember struct {
+	UserId   uint64 `json:"userId"`   // 用户ID
+	Username string `json:"username"` // 用户名
+	Nickname string `json:"nickname"` // 昵称
+}
+
+type GetClusterMembersRequest struct {
+	ClusterUuid string `path:"clusterUuid" validate:"required"` // 集群UUID
+}
+
+type SetClusterMembersRequest struct {
+	ClusterUuid string   `path:"clusterUuid" validate:"required"` // 集群UUID
+	UserIds     []uint64 `json:"userIds,optional"`                // 分配用户ID列表（覆盖式）
+}
+
 type ClusterAppDetail struct {
 	Id                 uint64 `json:"id"`                 // 自增主键
 	ClusterUuid        string `json:"clusterUuid"`        // 关联的集群UUID
