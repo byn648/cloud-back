@@ -741,6 +741,11 @@ message OnecProjectCluster {
   int64 updatedAt = 49; //记录更新时间
   string clusterName = 50;
   string status = 51;
+  // onec_cluster_energy_profile 能源画像（与项目分配无关，无行时下列为 false/0）
+  bool hasEnergyProfile = 52;  // 是否存在 is_deleted=0 的 energy_profile 行
+  double gridPricePerKwh = 53;  // 综合电价 元/kWh
+  bool hasStorageSoc = 54;   // 储能 SOC 在库中非 NULL
+  double storageSoc = 55;    // 储能荷电 0-100
 }
 
 message AddOnecProjectClusterReq {
@@ -1257,6 +1262,45 @@ message SearchOnecProjectAuditLogReq {
 message SearchOnecProjectAuditLogResp {
   repeated OnecProjectAuditLog data = 1; //onecProjectAuditLog
   uint64 total = 2; //total
+}
+
+// -----------------------调度计划表 onec_schedule_plan-----------------------
+message SaveSchedulePlanReq {
+  string planId = 1;
+  uint64 projectId = 2;
+  uint64 workspaceId = 3;
+  uint64 targetWorkspaceId = 4;
+  uint64 targetProjectClusterId = 5;
+  string targetClusterUuid = 6;
+  string namespace = 7;
+  string serviceName = 8;
+  string resourceType = 9;
+  string resourceName = 10;
+  string modelVersion = 11;
+  string clusterSnapshotJson = 12;
+  string nodeSnapshotJson = 13;
+  string placementsJson = 14;
+  string planJson = 15;
+  bool executable = 16;
+  string status = 17;
+  string reason = 18;
+  string createdBy = 19;
+  string updatedBy = 20;
+}
+
+message SaveSchedulePlanResp {
+}
+
+message UpdateSchedulePlanStatusReq {
+  string planId = 1;
+  string status = 2;
+  string executeMessage = 3;
+  string resourceType = 4;
+  string resourceName = 5;
+  string updatedBy = 6;
+}
+
+message UpdateSchedulePlanStatusResp {
 }
 
 message GetOnecProjectVersionDetailReq {
@@ -2734,6 +2778,23 @@ message SetAlertmanagerConfigResp {
 
 
 
+// 集群内节点相对能耗表 onec_cluster_node_energy
+message ListOnecClusterNodeEnergyReq {
+  string clusterUuid = 1;
+}
+
+message OnecClusterNodeEnergy {
+  uint64 id = 1;
+  string clusterUuid = 2;
+  string name = 3;
+  // 同规格 Pod 相对能耗 0~1，表注释: 越小越省；前端映射为 kube-scheduler preferred
+  double podEnergyIndex = 4;
+}
+
+message ListOnecClusterNodeEnergyResp {
+  repeated OnecClusterNodeEnergy data = 1;
+}
+
 service ManagerService {
   // //通过 clusterUuid 和 namespace 获取 详情信息
   rpc GetClusterNsDetail(GetClusterNsDetailReq) returns (GetClusterNsDetailResp);
@@ -2915,6 +2976,10 @@ service ManagerService {
   // 删除指定天数之前的数据
   rpc ProjectAuditLogDelBeforeDays(DelOnecProjectAuditLogBeforeDaysReq) returns (DelOnecProjectAuditLogBeforeDaysResp);
 
+  // 调度计划持久化
+  rpc SchedulePlanSave(SaveSchedulePlanReq) returns (SaveSchedulePlanResp);
+  rpc SchedulePlanUpdateStatus(UpdateSchedulePlanStatusReq) returns (UpdateSchedulePlanStatusResp);
+
   // 迁移相关
   // 迁移 workspace 到新的 project
   rpc MigrateWorkspace(MigrateWorkspaceReq) returns (MigrateWorkspaceResp);
@@ -2994,5 +3059,8 @@ service ManagerService {
 
   // 配置Alertmanager
   rpc SetAlertmanagerConfig(SetAlertmanagerConfigReq) returns (SetAlertmanagerConfigResp);
+
+  // 按集群拉取 onec_cluster_node_energy（已删过滤），供工作负载「能耗感知」软偏好
+  rpc ListOnecClusterNodeEnergy(ListOnecClusterNodeEnergyReq) returns (ListOnecClusterNodeEnergyResp);
 
 }

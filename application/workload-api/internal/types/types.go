@@ -4,8 +4,8 @@
 package types
 
 type AddApplicationResource struct {
-	ResourceClusterId uint64 `json:"resourceClusterId" validate:"required,min=1"`
-	ClusterUuid       string `json:"clusterUuid" validate:"required,uuid"`
+	ResourceClusterId uint64 `json:"resourceClusterId,optional" validate:"omitempty,min=1"`
+	ClusterUuid       string `json:"clusterUuid,optional" validate:"omitempty,uuid"`
 	WorkspaceId       uint64 `json:"workspaceId" validate:"required,min=1"`
 	NameCn            string `json:"nameCn" validate:"required,min=1,max=50"`
 	ResourceName      string `json:"resourceName" validate:"required`
@@ -14,6 +14,9 @@ type AddApplicationResource struct {
 	ResourceType      string `json:"resourceType" validate:"required,oneof=deployment statefulset daemonset job cronjob pod POD "`
 	ResourceYamlStr   string `json:"resourceYamlStr" validate:"required,min=1"`
 	Description       string `json:"description" validate:"omitempty,max=200"`
+	SchedulePlanId    string `json:"schedulePlanId,optional" validate:"omitempty,max=128"`
+	TargetClusterUuid string `json:"targetClusterUuid,optional" validate:"omitempty,uuid"`
+	SchedulePlanJson  string `json:"schedulePlanJson,optional"`
 }
 
 type AddClusterRoleRuleRequest struct {

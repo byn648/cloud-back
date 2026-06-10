@@ -61,13 +61,23 @@ func (l *ProjectWorkspaceSyncLogic) ProjectWorkspaceSync(in *pb.ProjectWorkspace
 		limitRangeOperator := clusterClient.LimitRange()
 		resourceQuotaOperator := clusterClient.ResourceQuota()
 
-		limitRangeAllocated, err := limitRangeOperator.GetLimits(namespace, "ikubeops"+workspaceName)
+		limitRangeAllocated, err := limitRangeOperator.GetLimits(namespace, workspacePolicyName(namespace))
+		if err != nil {
+			if legacyName := legacyWorkspacePolicyName(workspaceName); legacyName != workspacePolicyName(namespace) {
+				limitRangeAllocated, err = limitRangeOperator.GetLimits(namespace, legacyName)
+			}
+		}
 		if err != nil {
 			logger.Errorf("获取LimitRange失败: %v", err)
 			return
 		}
 
-		quotaAllocated, err := resourceQuotaOperator.GetAllocated(namespace, "ikubeops"+workspaceName)
+		quotaAllocated, err := resourceQuotaOperator.GetAllocated(namespace, workspacePolicyName(namespace))
+		if err != nil {
+			if legacyName := legacyWorkspacePolicyName(workspaceName); legacyName != workspacePolicyName(namespace) {
+				quotaAllocated, err = resourceQuotaOperator.GetAllocated(namespace, legacyName)
+			}
+		}
 		if err != nil {
 			logger.Errorf("获取ResourceQuota失败: %v", err)
 			return

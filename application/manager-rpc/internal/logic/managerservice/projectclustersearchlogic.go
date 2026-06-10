@@ -48,6 +48,18 @@ func (l *ProjectClusterSearchLogic) ProjectClusterSearch(in *pb.SearchOnecProjec
 		return nil, errorx.Msg("搜索项目集群配额失败")
 	}
 
+	uuids := make([]string, 0, len(projectClusters))
+	for _, pc := range projectClusters {
+		if pc.ClusterUuid != "" {
+			uuids = append(uuids, pc.ClusterUuid)
+		}
+	}
+	energyByUuid, nerr := loadClusterEnergyMapByUuids(l.ctx, l.svcCtx.Mysql, uuids)
+	if nerr != nil {
+		l.Logger.Errorf("查询集群能源画像失败（忽略能源字段）: %v", nerr)
+		energyByUuid = nil
+	}
+
 	// 转换结果
 	var data []*pb.OnecProjectCluster
 	for _, pc := range projectClusters {
@@ -57,7 +69,13 @@ func (l *ProjectClusterSearchLogic) ProjectClusterSearch(in *pb.SearchOnecProjec
 		if err == nil {
 			clusterName = cluster.Name
 		}
-		data = append(data, convertProjectClusterToProto(pc, clusterName))
+		row := convertProjectClusterToProto(pc, clusterName)
+		if energyByUuid != nil {
+			if e, ok := energyByUuid[pc.ClusterUuid]; ok {
+				mergeProjectClusterEnergy(row, e)
+			}
+		}
+		data = append(data, row)
 	}
 
 	l.Logger.Infof("搜索项目集群配额成功，数量: %d", len(data))

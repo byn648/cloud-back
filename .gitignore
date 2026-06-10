@@ -32,3 +32,10 @@ local/*
 tmp
 .local/
 logs/
+*.log
+.env
+.env.*
+!.env.example
+application/rl-policy-service/models/
+__pycache__/
+*.py[cod]

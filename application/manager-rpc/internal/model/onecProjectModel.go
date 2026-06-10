@@ -293,15 +293,15 @@ func (m *customOnecProjectModel) GetWorkspaceResourceStatsByProjectCluster(ctx c
 		}
 		stats.CpuAllocated += cpu
 
-		// 转换并累加内存（GiB）
-		mem, err := utils.MemoryToGiB(ws.MemAllocated)
+		// 转换并累加内存（GiB；库内裸 "6" 为 GiB，见 PlatformMemoryStringToGiB）
+		mem, err := utils.PlatformMemoryStringToGiB(ws.MemAllocated)
 		if err != nil {
 			return nil, fmt.Errorf("内存转换失败 [%s]: %v", ws.MemAllocated, err)
 		}
 		stats.MemAllocated += mem
 
 		// 转换并累加存储（GiB）
-		storage, err := utils.MemoryToGiB(ws.StorageAllocated)
+		storage, err := utils.PlatformMemoryStringToGiB(ws.StorageAllocated)
 		if err != nil {
 			return nil, fmt.Errorf("存储转换失败 [%s]: %v", ws.StorageAllocated, err)
 		}
@@ -315,7 +315,7 @@ func (m *customOnecProjectModel) GetWorkspaceResourceStatsByProjectCluster(ctx c
 		stats.GpuAllocated += gpu
 
 		// 转换并累加临时存储（GiB）
-		ephStorage, err := utils.MemoryToGiB(ws.EphemeralStorageAllocated)
+		ephStorage, err := utils.PlatformMemoryStringToGiB(ws.EphemeralStorageAllocated)
 		if err != nil {
 			return nil, fmt.Errorf("临时存储转换失败 [%s]: %v", ws.EphemeralStorageAllocated, err)
 		}
@@ -583,20 +583,20 @@ func (m *customOnecProjectModel) GetProjectResourceSummary(ctx context.Context, 
 		summary.CpuAllocatedTotal += cpuAllocated
 
 		// Memory
-		memLimit, _ := utils.MemoryToGiB(record.MemLimit)
+		memLimit, _ := utils.PlatformMemoryStringToGiB(record.MemLimit)
 		summary.MemLimitTotal += memLimit
 
-		memCapacity, _ := utils.MemoryToGiB(record.MemCapacity)
+		memCapacity, _ := utils.PlatformMemoryStringToGiB(record.MemCapacity)
 		summary.MemCapacityTotal += memCapacity
 
-		memAllocated, _ := utils.MemoryToGiB(record.MemAllocated)
+		memAllocated, _ := utils.PlatformMemoryStringToGiB(record.MemAllocated)
 		summary.MemAllocatedTotal += memAllocated
 
 		// Storage
-		storageLimit, _ := utils.MemoryToGiB(record.StorageLimit)
+		storageLimit, _ := utils.PlatformMemoryStringToGiB(record.StorageLimit)
 		summary.StorageLimitTotal += storageLimit
 
-		storageAllocated, _ := utils.MemoryToGiB(record.StorageAllocated)
+		storageAllocated, _ := utils.PlatformMemoryStringToGiB(record.StorageAllocated)
 		summary.StorageAllocatedTotal += storageAllocated
 
 		// GPU
@@ -610,7 +610,7 @@ func (m *customOnecProjectModel) GetProjectResourceSummary(ctx context.Context, 
 		summary.GpuAllocatedTotal += gpuAllocated
 
 		// Ephemeral Storage
-		ephemeralStorage, _ := utils.MemoryToGiB(record.EphemeralStorageAllocated)
+		ephemeralStorage, _ := utils.PlatformMemoryStringToGiB(record.EphemeralStorageAllocated)
 		summary.EphemeralStorageAllocatedTotal += ephemeralStorage
 
 		// 整数类型直接累加

@@ -92,6 +92,10 @@ func (l *SearchProjectClusterLogic) SearchProjectCluster(req *types.SearchProjec
 			UpdatedBy:                 c.UpdatedBy,
 			CreatedAt:                 c.CreatedAt,
 			UpdatedAt:                 c.UpdatedAt,
+			HasEnergyProfile:         c.HasEnergyProfile,
+			GridPricePerKwh:         c.GridPricePerKwh,
+			HasStorageSoc:            c.HasStorageSoc,
+			StorageSoc:               c.StorageSoc,
 		})
 	}
 

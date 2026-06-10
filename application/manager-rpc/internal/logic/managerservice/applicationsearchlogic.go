@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/yanshicheng/kube-nova/application/manager-rpc/internal/model"
 	"github.com/yanshicheng/kube-nova/application/manager-rpc/internal/svc"
@@ -36,12 +37,50 @@ func (l *ApplicationSearchLogic) ApplicationSearch(in *pb.SearchOnecProjectAppli
 		return nil, status.Error(codes.InvalidArgument, "workspaceId 不能为空")
 	}
 
-	// 构建查询条件
-	var queryStr string
-	var args []interface{}
+	workspace, err := l.svcCtx.OnecProjectWorkspaceModel.FindOne(l.ctx, in.WorkspaceId)
+	if err != nil {
+		l.Errorf("查询工作空间失败: %v, workspaceId=%d", err, in.WorkspaceId)
+		return nil, status.Error(codes.Internal, "查询工作空间失败")
+	}
 
-	queryStr = "`workspace_id` = ?"
-	args = append(args, in.WorkspaceId)
+	projectCluster, err := l.svcCtx.OnecProjectClusterModel.FindOne(l.ctx, workspace.ProjectClusterId)
+	if err != nil {
+		l.Errorf("查询项目集群失败: %v, projectClusterId=%d", err, workspace.ProjectClusterId)
+		return nil, status.Error(codes.Internal, "查询项目集群失败")
+	}
+
+	logicalWorkspaces, err := l.svcCtx.OnecProjectWorkspaceModel.SearchNoPage(
+		l.ctx,
+		"`id`",
+		true,
+		"`project_cluster_id` IN (SELECT `id` FROM `onec_project_cluster` WHERE `project_id` = ? AND `is_deleted` = 0) AND `namespace` = ? AND `name` = ?",
+		projectCluster.ProjectId,
+		workspace.Namespace,
+		workspace.Name,
+	)
+	if err != nil && !errors.Is(err, model.ErrNotFound) {
+		l.Errorf("查询逻辑工作空间绑定失败: %v, projectId=%d, namespace=%s, name=%s",
+			err, projectCluster.ProjectId, workspace.Namespace, workspace.Name)
+		return nil, status.Error(codes.Internal, "查询逻辑工作空间绑定失败")
+	}
+
+	workspaceIds := make([]uint64, 0, len(logicalWorkspaces))
+	for _, item := range logicalWorkspaces {
+		workspaceIds = append(workspaceIds, item.Id)
+	}
+	if len(workspaceIds) == 0 {
+		workspaceIds = append(workspaceIds, in.WorkspaceId)
+	}
+
+	// 构建查询条件
+	placeholders := make([]string, 0, len(workspaceIds))
+	var args []interface{}
+	for _, workspaceId := range workspaceIds {
+		placeholders = append(placeholders, "?")
+		args = append(args, workspaceId)
+	}
+
+	queryStr := fmt.Sprintf("`workspace_id` IN (%s)", strings.Join(placeholders, ","))
 
 	// 如果指定了服务中文名，添加模糊查询
 	if in.NameCn != "" {

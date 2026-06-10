@@ -62,6 +62,9 @@ type ServiceContext struct {
 
 	// Leader Election 模式的增量同步管理器（可选）
 	LeaderSyncManager *incremental.LeaderManager
+
+	// 原始 SQL 连接，用于 ad-hoc 查询（如 onec_cluster_energy_profile，已有 Model 不覆盖的表）
+	Mysql sqlx.SqlConn
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
@@ -210,6 +213,8 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		// 增量同步管理器（根据配置选择模式）
 		IncrementalSyncManager: incrementalManager,
 		LeaderSyncManager:      leaderSyncManager,
+
+		Mysql: sqlConn,
 	}
 
 	return svcCtx

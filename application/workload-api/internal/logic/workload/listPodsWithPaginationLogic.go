@@ -46,6 +46,10 @@ func (l *ListPodsWithPaginationLogic) ListPodsWithPagination(req *types.ListPods
 		SortDesc: req.SortDesc,
 		Labels:   req.Labels,
 	})
+	if err != nil {
+		l.Errorf("列出 Pod 失败: %v", err)
+		return nil, fmt.Errorf("列出 Pod 失败: %v", err)
+	}
 	resp = &types.ListPodsWithPaginationResponse{
 		Total:      pods.Total,
 		Page:       pods.Page,

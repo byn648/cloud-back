@@ -1,0 +1,96 @@
+syntax = "v1"
+
+info(
+    title:   "Schedule API"
+    desc:    "电-储-算感知微服务调度计划"
+    version: "1.0"
+)
+
+import "./base.api"
+
+type (
+	// RL 调度服务资源需求
+	RlScheduleServiceDemand {
+		ServiceName      string  `json:"serviceName,optional"`
+		Replicas         int64   `json:"replicas" validate:"required,min=1,max=200"`
+		CpuRequestCores  float64 `json:"cpuRequestCores" validate:"required,min=0"`
+		MemoryRequestGiB float64 `json:"memoryRequestGiB" validate:"required,min=0"`
+		GpuRequest       float64 `json:"gpuRequest,optional" validate:"omitempty,min=0"`
+	}
+
+	// 生成分层 RL 调度计划
+	BuildRlSchedulePlanRequest {
+		ProjectId   uint64 `json:"projectId,optional" validate:"omitempty,gt=0"`
+		WorkspaceId uint64 `json:"workspaceId" validate:"required,gt=0"`
+		Service     RlScheduleServiceDemand `json:"service" validate:"required"`
+	}
+
+	RlScheduleClusterCandidate {
+		ProjectClusterId  uint64  `json:"projectClusterId"`
+		TargetWorkspaceId uint64  `json:"targetWorkspaceId"`
+		Namespace         string  `json:"namespace"`
+		WorkspaceName     string  `json:"workspaceName"`
+		ClusterUuid       string  `json:"clusterUuid"`
+		ClusterName       string  `json:"clusterName"`
+		Region            string  `json:"region"`
+		Authorized        bool    `json:"authorized"`
+		Status            string  `json:"status"`
+		CpuFreeCores      float64 `json:"cpuFreeCores"`
+		MemoryFreeGiB     float64 `json:"memoryFreeGiB"`
+		GpuFree           float64 `json:"gpuFree"`
+		RealtimeResourceReady bool   `json:"realtimeResourceReady"`
+		RealtimeResourceError string `json:"realtimeResourceError"`
+		GridPricePerKwh   float64 `json:"gridPricePerKwh"`
+		HasEnergyProfile  bool    `json:"hasEnergyProfile"`
+		StorageSoc        float64 `json:"storageSoc"`
+		HasStorageSoc     bool    `json:"hasStorageSoc"`
+		HasCurrentPower   bool    `json:"hasCurrentPower"`
+		CurrentPowerW     float64 `json:"currentPowerW"`
+		ActionMasked      bool    `json:"actionMasked"`
+		MaskReason        string  `json:"maskReason"`
+		Selected          bool    `json:"selected"`
+	}
+
+	RlScheduleNodeCandidate {
+		ClusterUuid      string  `json:"clusterUuid"`
+		NodeName         string  `json:"nodeName"`
+		NodeStatus       string  `json:"nodeStatus"`
+		Unschedulable    int64   `json:"unschedulable"`
+		CpuFreeCores     float64 `json:"cpuFreeCores"`
+		MemoryFreeGiB    float64 `json:"memoryFreeGiB"`
+		GpuFree          float64 `json:"gpuFree"`
+		PodsFree         int64   `json:"podsFree"`
+		HasCurrentPower  bool    `json:"hasCurrentPower"`
+		CurrentPowerW    float64 `json:"currentPowerW"`
+		ActionMasked     bool    `json:"actionMasked"`
+		MaskReason       string  `json:"maskReason"`
+		AssignedReplicas int64   `json:"assignedReplicas"`
+	}
+
+	RlReplicaPlacement {
+		ReplicaName string `json:"replicaName"`
+		NodeName    string `json:"nodeName"`
+	}
+
+	BuildRlSchedulePlanResponse {
+		PlanId            string `json:"planId"`
+		ModelVersion      string `json:"modelVersion"`
+		TargetCluster     RlScheduleClusterCandidate `json:"targetCluster,optional"`
+		ClusterCandidates []RlScheduleClusterCandidate `json:"clusterCandidates"`
+		NodeCandidates    []RlScheduleNodeCandidate `json:"nodeCandidates"`
+		Placements        []RlReplicaPlacement `json:"placements"`
+		Reason            string `json:"reason"`
+		Executable        bool   `json:"executable"`
+	}
+
+)
+
+@server(
+    prefix: /v1/schedule
+    group:  schedule
+)
+service manager-api {
+	@doc "生成电-储-算感知分层强化学习调度计划"
+	@handler BuildRlSchedulePlan
+	post /rl-plan (BuildRlSchedulePlanRequest) returns (BuildRlSchedulePlanResponse)
+}
