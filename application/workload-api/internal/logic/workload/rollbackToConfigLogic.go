@@ -51,7 +51,7 @@ func (l *RollbackToConfigLogic) RollbackToConfig(req *types.RollbackToConfigRequ
 	if err == nil && configHistory != nil {
 		for _, ch := range configHistory {
 			if ch.Id == req.ConfigHistoryId {
-				targetConfigDesc = fmt.Sprintf("创建时间: %s, 原因: %s", ch.CreatedAt, ch.Reason)
+				targetConfigDesc = fmt.Sprintf("创建时间: %d, 原因: %s", ch.CreatedAt, ch.Reason)
 				break
 			}
 		}
