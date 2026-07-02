@@ -24,6 +24,7 @@ import (
 const (
 	rlScheduleModelVersion = "maskable-ppo-two-level-v0.1"
 	rlStorageSocMin        = 20.0
+	prometheusProxyTimeout = 1500 * time.Millisecond
 	bytesPerGiB            = 1024.0 * 1024.0 * 1024.0
 )
 
@@ -984,6 +985,9 @@ func (l *BuildRlSchedulePlanLogic) loadNodePowerReadings(clusterUuid string, nod
 		results, err := l.queryPrometheusInstant(clusterUuid, query)
 		if err != nil {
 			l.Errorf("query Prometheus node power failed: clusterUuid=%s query=%s err=%v", clusterUuid, query, err)
+			if prometheusUnavailableError(err) {
+				return nil
+			}
 			continue
 		}
 		for _, result := range results {
@@ -1019,6 +1023,9 @@ func (l *BuildRlSchedulePlanLogic) loadClusterStorageSoc(clusterUuid string) (fl
 		results, err := l.queryPrometheusInstant(clusterUuid, query)
 		if err != nil {
 			l.Errorf("query Prometheus storage SOC failed: clusterUuid=%s query=%s err=%v", clusterUuid, query, err)
+			if prometheusUnavailableError(err) {
+				return 0, false
+			}
 			continue
 		}
 		for _, result := range results {
@@ -1062,7 +1069,10 @@ func (l *BuildRlSchedulePlanLogic) queryPrometheusViaKubernetesProxy(clusterUuid
 		return nil, fmt.Errorf("query cluster client failed: %w", err)
 	}
 	kubeClient := clusterClient.GetKubeClient()
-	services, err := discoverPrometheusServices(l.ctx, kubeClient)
+	queryCtx, cancel := context.WithTimeout(l.ctx, prometheusProxyTimeout)
+	defer cancel()
+
+	services, err := discoverPrometheusServices(queryCtx, kubeClient)
 	if err != nil {
 		return nil, err
 	}
@@ -1071,7 +1081,10 @@ func (l *BuildRlSchedulePlanLogic) queryPrometheusViaKubernetesProxy(clusterUuid
 	}
 	var lastErr error
 	for _, svc := range services {
-		samples, err := queryPrometheusServiceProxy(l.ctx, kubeClient, svc, query)
+		if err := queryCtx.Err(); err != nil {
+			return nil, err
+		}
+		samples, err := queryPrometheusServiceProxy(queryCtx, kubeClient, svc, query)
 		if err == nil {
 			return samples, nil
 		}
@@ -1081,6 +1094,17 @@ func (l *BuildRlSchedulePlanLogic) queryPrometheusViaKubernetesProxy(clusterUuid
 		return nil, lastErr
 	}
 	return nil, fmt.Errorf("query Prometheus service proxy failed")
+}
+
+func prometheusUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "no prometheus service discovered") ||
+		strings.Contains(text, "context deadline exceeded") ||
+		strings.Contains(text, "client rate limiter wait returned") ||
+		strings.Contains(text, "query prometheus service proxy failed")
 }
 
 func discoverPrometheusServices(ctx context.Context, kubeClient kubernetes.Interface) ([]prometheusServiceRef, error) {
@@ -1164,10 +1188,15 @@ func prometheusServiceScore(service *corev1.Service) int {
 	if !strings.Contains(text, "prometheus") {
 		return 0
 	}
-	score := 10
-	if strings.Contains(text, "alertmanager") || strings.Contains(text, "operator") || strings.Contains(text, "node-exporter") || strings.Contains(text, "pushgateway") {
-		score -= 8
+	if strings.Contains(text, "alertmanager") ||
+		strings.Contains(text, "node-exporter") ||
+		strings.Contains(text, "kube-state-metrics") ||
+		strings.Contains(text, "pushgateway") ||
+		strings.Contains(text, "prometheus-adapter") ||
+		strings.Contains(text, "prometheus-operator") {
+		return 0
 	}
+	score := 10
 	if strings.Contains(text, "server") || strings.Contains(text, "k8s") || strings.Contains(text, "stack") {
 		score += 3
 	}
