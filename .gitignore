@@ -37,5 +37,8 @@ logs/
 .env.*
 !.env.example
 application/rl-policy-service/models/
+model_service/checkpoints/*.pt
+model_service/checkpoints/*.pkl
+model_service/checkpoints/*.json
 __pycache__/
 *.py[cod]

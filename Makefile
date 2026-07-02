@@ -115,7 +115,7 @@ gen-portal-rpc:
 
 run-portal-rpc: ## fmt vet 运行 portal-rpc 服务
 	@echo "正在运行 portal-rpc 服务..."
-	@go run $(APPLICATION_DIR)/portal-rpc/portal.go  -f $(APPLICATION_DIR)/portal-rpc/etc/portal.yaml
+	@go run $(APPLICATION_DIR)/portal-rpc/portal.go  -f $(APPLICATION_DIR)/portal-rpc/etc/portal.local.yaml
 
 gen-manager-api:
 	@echo "正在生成 manager-api 服务代码..."
@@ -151,6 +151,10 @@ run-workload-api: ## fmt vet 运行workload-api 服务
 	@echo "正在运行 workload-api 服务..."
 	@go run $(APPLICATION_DIR)/workload-api/workload.go  -f $(APPLICATION_DIR)/workload-api/etc/workload-api.yaml
 
+
+run-green-api: ## fmt vet 运行 green-api 服务（预测分析与性能管控）
+	@echo "正在运行 green-api 服务（端口 8813）..."
+	@go run $(APPLICATION_DIR)/green-api/green.go  -f $(APPLICATION_DIR)/green-api/etc/green-api.yaml
 
 gen-console-api:
 	@echo "正在生成 console-api 服务代码..."

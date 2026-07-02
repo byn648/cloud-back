@@ -1,0 +1,32 @@
+-- 课题二 V0.3：SLO代理模型预测结果表
+
+CREATE TABLE IF NOT EXISTS slo_proxy_prediction (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  objective_id VARCHAR(64) NOT NULL,
+  cluster_uuid VARCHAR(64) NOT NULL DEFAULT '',
+  business_flow VARCHAR(128) NOT NULL DEFAULT '',
+  service_id VARCHAR(64) NOT NULL,
+  service_name VARCHAR(64) NOT NULL DEFAULT '',
+  api_id VARCHAR(64) NOT NULL DEFAULT '',
+  forecast_time DATETIME NOT NULL,
+  horizon_minutes INT NOT NULL DEFAULT 15,
+  qps_forecast DOUBLE NOT NULL DEFAULT 0,
+  request_mix VARCHAR(128) NOT NULL DEFAULT 'default',
+  replica_count INT NOT NULL DEFAULT 1,
+  cpu_request DOUBLE NOT NULL DEFAULT 0,
+  gpu_request DOUBLE NOT NULL DEFAULT 0,
+  memory_request_gb DOUBLE NOT NULL DEFAULT 0,
+  predicted_cpu_util DOUBLE NOT NULL DEFAULT 0,
+  predicted_gpu_util DOUBLE NOT NULL DEFAULT 0,
+  p99_latency_budget DOUBLE NOT NULL DEFAULT 0,
+  error_rate_budget DOUBLE NOT NULL DEFAULT 0,
+  predicted_p95_latency DOUBLE NOT NULL DEFAULT 0,
+  predicted_p99_latency DOUBLE NOT NULL DEFAULT 0,
+  violation_probability DOUBLE NOT NULL DEFAULT 0,
+  model_name VARCHAR(64) NOT NULL DEFAULT 'slo_proxy_baseline',
+  model_version VARCHAR(64) NOT NULL DEFAULT 'v0.3',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_slo_proxy_prediction (objective_id, service_id, api_id, horizon_minutes, model_name),
+  INDEX idx_slo_proxy_objective (objective_id, horizon_minutes),
+  INDEX idx_slo_proxy_cluster_time (cluster_uuid, forecast_time)
+);
